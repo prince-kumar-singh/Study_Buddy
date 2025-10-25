@@ -1,0 +1,82 @@
+# Study Buddy - Sample Text Document
+
+## Introduction to Machine Learning
+
+Machine learning is a subset of artificial intelligence (AI) that focuses on building systems that can learn from and make decisions based on data. Unlike traditional programming where we explicitly code rules, machine learning algorithms learn patterns from data.
+
+## Types of Machine Learning
+
+### 1. Supervised Learning
+In supervised learning, the algorithm learns from labeled training data. The model learns to map inputs to outputs based on example input-output pairs.
+
+**Common Applications:**
+- Image classification
+- Spam detection
+- Price prediction
+
+### 2. Unsupervised Learning
+Unsupervised learning works with unlabeled data. The algorithm tries to find hidden patterns or intrinsic structures in the input data.
+
+**Common Applications:**
+- Customer segmentation
+- Anomaly detection
+- Dimensionality reduction
+
+### 3. Reinforcement Learning
+Reinforcement learning is about taking suitable action to maximize reward in a particular situation. The agent learns through trial and error.
+
+**Common Applications:**
+- Game playing (AlphaGo)
+- Robotics
+- Autonomous vehicles
+
+## Key Concepts
+
+### Features and Labels
+- **Features**: Input variables used to make predictions
+- **Labels**: Output or target variable we want to predict
+
+### Training and Testing
+- **Training Set**: Data used to train the model
+- **Test Set**: Data used to evaluate the model's performance
+
+### Overfitting and Underfitting
+- **Overfitting**: Model performs well on training data but poorly on new data
+- **Underfitting**: Model is too simple and performs poorly on both training and test data
+
+## Popular Algorithms
+
+1. **Linear Regression**: For predicting continuous values
+2. **Logistic Regression**: For binary classification
+3. **Decision Trees**: For both classification and regression
+4. **Random Forests**: Ensemble method using multiple decision trees
+5. **Support Vector Machines (SVM)**: For classification tasks
+6. **Neural Networks**: Deep learning models inspired by the brain
+
+## Evaluation Metrics
+
+### For Classification
+- Accuracy
+- Precision
+- Recall
+- F1 Score
+- ROC-AUC
+
+### For Regression
+- Mean Squared Error (MSE)
+- Root Mean Squared Error (RMSE)
+- Mean Absolute Error (MAE)
+- R-squared (R²)
+
+## Conclusion
+
+Machine learning is transforming how we solve complex problems across various domains. Understanding the fundamentals is crucial for anyone looking to work with data and AI technologies.
+
+Key takeaways:
+- Choose the right type of learning based on your problem
+- Understand your data and features
+- Evaluate models properly
+- Avoid overfitting and underfitting
+- Keep learning and experimenting
+
+Remember: Machine learning is an iterative process that requires continuous improvement and adaptation.
