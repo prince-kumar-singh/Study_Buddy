@@ -4,10 +4,11 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
-
-// Placeholder components for remaining pages
-const Content = () => <div className="container mx-auto p-8"><h1 className="text-3xl font-bold">Content View - Coming Soon</h1></div>
-const Flashcards = () => <div className="container mx-auto p-8"><h1 className="text-3xl font-bold">Flashcards - Coming Soon</h1></div>
+import { DeletedItems } from './pages/DeletedItems'
+import ContentDetail from './pages/ContentDetail'
+import Flashcards from './pages/Flashcards'
+import QuizList from './pages/QuizList'
+import TakeQuiz from './pages/Quiz'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -25,12 +26,24 @@ function App() {
         element={isAuthenticated ? <Upload /> : <Navigate to="/login" />}
       />
       <Route
+        path="/deleted-items"
+        element={isAuthenticated ? <DeletedItems /> : <Navigate to="/login" />}
+      />
+      <Route
         path="/content/:id"
-        element={isAuthenticated ? <Content /> : <Navigate to="/login" />}
+        element={isAuthenticated ? <ContentDetail /> : <Navigate to="/login" />}
       />
       <Route
         path="/flashcards/:contentId"
         element={isAuthenticated ? <Flashcards /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/quizzes/:contentId"
+        element={isAuthenticated ? <QuizList /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/quiz/:quizId"
+        element={isAuthenticated ? <TakeQuiz /> : <Navigate to="/login" />}
       />
       <Route path="/" element={<Navigate to="/dashboard" />} />
     </Routes>
