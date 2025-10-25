@@ -6,6 +6,7 @@ export interface IContent extends Document {
   title: string;
   description?: string;
   sourceUrl?: string;
+  cloudinaryPublicId?: string;
   sourceFile?: {
     originalName: string;
     mimeType: string;
@@ -15,49 +16,79 @@ export interface IContent extends Document {
   metadata: {
     duration?: number;
     pageCount?: number;
+    totalPages?: number;
+    totalCharacters?: number;
+    totalChunks?: number;
     wordCount?: number;
     language?: string;
     author?: string;
     videoId?: string;
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    uploadDate?: Date;
     error?: string;
+    pausedReason?: string;
+    pausedAt?: Date;
+    quotaInfo?: any;
   };
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'paused';
   processingStages: {
     transcription: {
-      status: 'pending' | 'processing' | 'completed' | 'failed';
+      status: 'pending' | 'processing' | 'completed' | 'failed' | 'paused';
       progress: number;
       startedAt?: Date;
       completedAt?: Date;
       error?: string;
+      retryCount?: number;
+      lastRetryAt?: Date;
+      errorType?: string;
+      errorDetails?: any;
     };
     vectorization: {
-      status: 'pending' | 'processing' | 'completed' | 'failed';
+      status: 'pending' | 'processing' | 'completed' | 'failed' | 'paused';
       progress: number;
       startedAt?: Date;
       completedAt?: Date;
       error?: string;
       vectorStoreId?: string;
+      retryCount?: number;
+      lastRetryAt?: Date;
+      errorType?: string;
+      errorDetails?: any;
     };
     summarization: {
-      status: 'pending' | 'processing' | 'completed' | 'failed';
+      status: 'pending' | 'processing' | 'completed' | 'failed' | 'paused';
       progress: number;
       startedAt?: Date;
       completedAt?: Date;
       error?: string;
+      retryCount?: number;
+      lastRetryAt?: Date;
+      errorType?: string;
+      errorDetails?: any;
     };
     flashcardGeneration: {
-      status: 'pending' | 'processing' | 'completed' | 'failed';
+      status: 'pending' | 'processing' | 'completed' | 'failed' | 'paused';
       progress: number;
       startedAt?: Date;
       completedAt?: Date;
       error?: string;
+      retryCount?: number;
+      lastRetryAt?: Date;
+      errorType?: string;
+      errorDetails?: any;
     };
     quizGeneration: {
-      status: 'pending' | 'processing' | 'completed' | 'failed';
+      status: 'pending' | 'processing' | 'completed' | 'failed' | 'paused';
       progress: number;
       startedAt?: Date;
       completedAt?: Date;
       error?: string;
+      retryCount?: number;
+      lastRetryAt?: Date;
+      errorType?: string;
+      errorDetails?: any;
     };
   };
   tags: string[];
@@ -90,6 +121,7 @@ const ContentSchema = new Schema<IContent>(
       trim: true,
     },
     sourceUrl: String,
+    cloudinaryPublicId: String,
     sourceFile: {
       originalName: String,
       mimeType: String,
@@ -99,10 +131,17 @@ const ContentSchema = new Schema<IContent>(
     metadata: {
       duration: Number,
       pageCount: Number,
+      totalPages: Number,
+      totalCharacters: Number,
+      totalChunks: Number,
       wordCount: Number,
       language: String,
       author: String,
       videoId: String,
+      fileName: String,
+      fileSize: Number,
+      mimeType: String,
+      uploadDate: Date,
       error: String,
     },
     status: {
@@ -122,6 +161,8 @@ const ContentSchema = new Schema<IContent>(
         startedAt: Date,
         completedAt: Date,
         error: String,
+        retryCount: { type: Number, default: 0 },
+        lastRetryAt: Date,
       },
       vectorization: {
         status: {
@@ -134,6 +175,8 @@ const ContentSchema = new Schema<IContent>(
         completedAt: Date,
         error: String,
         vectorStoreId: String,
+        retryCount: { type: Number, default: 0 },
+        lastRetryAt: Date,
       },
       summarization: {
         status: {
@@ -145,6 +188,8 @@ const ContentSchema = new Schema<IContent>(
         startedAt: Date,
         completedAt: Date,
         error: String,
+        retryCount: { type: Number, default: 0 },
+        lastRetryAt: Date,
       },
       flashcardGeneration: {
         status: {
@@ -156,6 +201,8 @@ const ContentSchema = new Schema<IContent>(
         startedAt: Date,
         completedAt: Date,
         error: String,
+        retryCount: { type: Number, default: 0 },
+        lastRetryAt: Date,
       },
       quizGeneration: {
         status: {
@@ -167,6 +214,8 @@ const ContentSchema = new Schema<IContent>(
         startedAt: Date,
         completedAt: Date,
         error: String,
+        retryCount: { type: Number, default: 0 },
+        lastRetryAt: Date,
       },
     },
     tags: [String],
