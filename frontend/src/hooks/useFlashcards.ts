@@ -16,12 +16,19 @@ export const useDueFlashcards = () => {
   })
 }
 
+export const useFlashcardStatistics = () => {
+  return useQuery({
+    queryKey: ['flashcards', 'statistics'],
+    queryFn: () => flashcardService.getStatistics(),
+  })
+}
+
 export const useReviewFlashcard = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, quality }: { id: string; quality: number }) =>
-      flashcardService.reviewFlashcard(id, quality),
+    mutationFn: ({ id, quality, responseTime }: { id: string; quality: number; responseTime?: number }) =>
+      flashcardService.reviewFlashcard(id, quality, responseTime),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flashcards'] })
     },
