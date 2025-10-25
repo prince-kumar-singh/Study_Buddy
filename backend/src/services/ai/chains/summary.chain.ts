@@ -1,5 +1,6 @@
 import { LLMChain } from 'langchain/chains';
 import { createLLM } from '../../../config/langchain.config';
+import { AITaskType, GEMINI_MODELS } from '../../../config/ai.config';
 import {
   quickSummaryPrompt,
   briefSummaryPrompt,
@@ -8,6 +9,14 @@ import {
 } from '../prompts/summary.prompts';
 import { conceptParser } from '../parsers/flashcard.parser';
 import { logger } from '../../../config/logger';
+import {
+  isQuotaError,
+  parseQuotaError,
+  QuotaExceededError,
+  logQuotaError,
+  getQuotaFallbackModel,
+} from '../../../utils/quota-error-handler';
+import { quotaService } from '../../quota.service';
 
 export type SummaryType = 'quick' | 'brief' | 'detailed';
 
@@ -28,33 +37,39 @@ export interface SummaryResult {
  */
 export const generateSummary = async (
   content: string,
-  type: SummaryType = 'brief'
+  type: SummaryType = 'brief',
+  userId?: string,
+  contentId?: string
 ): Promise<SummaryResult> => {
   const startTime = Date.now();
 
   try {
     // Select appropriate prompt based on type
     let prompt;
+    let taskType: AITaskType;
     switch (type) {
       case 'quick':
         prompt = quickSummaryPrompt;
+        taskType = AITaskType.SUMMARY_QUICK;
         break;
       case 'detailed':
         prompt = detailedSummaryPrompt;
+        taskType = AITaskType.SUMMARY_DETAILED;
         break;
       default:
         prompt = briefSummaryPrompt;
+        taskType = AITaskType.SUMMARY_BRIEF;
     }
 
     // Create LLM with appropriate temperature
-    const llm = createLLM({
+    const llm = await createLLM(taskType, {
       temperature: 0.3, // Lower temperature for more focused summaries
     });
 
     // Create chain
     const chain = new LLMChain({
-      llm,
-      prompt,
+      llm: llm as any, // Type assertion due to @langchain/core version mismatch
+      prompt: prompt as any,
     });
 
     // Generate summary
@@ -68,11 +83,29 @@ export const generateSummary = async (
 
     logger.info(`Generated ${type} summary: ${wordCount} words in ${generationTime}ms`);
 
+    // Log successful API request
+    if (userId) {
+      await quotaService.logApiRequest({
+        userId: userId as any,
+        contentId: contentId as any,
+        apiProvider: 'gemini',
+        endpoint: 'generateContent',
+        requestType: 'summarization',
+        status: 'success',
+        requestDuration: generationTime,
+        metadata: {
+          model: GEMINI_MODELS.FLASH,
+          summaryType: type,
+          wordCount
+        }
+      }).catch(err => logger.error('Failed to log API request:', err));
+    }
+
     // Extract concepts for detailed summaries
     let concepts;
     if (type === 'detailed') {
       try {
-        concepts = await extractConcepts(content);
+        concepts = await extractConcepts(content, userId, contentId);
       } catch (error) {
         logger.error('Failed to extract concepts:', error);
       }
@@ -82,10 +115,40 @@ export const generateSummary = async (
       content: summaryContent,
       wordCount,
       generationTime,
-      model: 'gemini-pro',
+      model: GEMINI_MODELS.FLASH,
       concepts,
     };
   } catch (error) {
+    const generationTime = Date.now() - startTime;
+
+    // Log failed API request
+    if (userId) {
+      await quotaService.logApiRequest({
+        userId: userId as any,
+        contentId: contentId as any,
+        apiProvider: 'gemini',
+        endpoint: 'generateContent',
+        requestType: 'summarization',
+        status: isQuotaError(error) ? 'quota_exceeded' : 'failure',
+        requestDuration: generationTime,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: isQuotaError(error) ? '429' : '500',
+        metadata: {
+          model: GEMINI_MODELS.FLASH,
+          summaryType: type
+        }
+      }).catch(err => logger.error('Failed to log API request:', err));
+    }
+
+    // Check if this is a quota error
+    if (isQuotaError(error)) {
+      const quotaInfo = parseQuotaError(error);
+      logQuotaError('generateSummary', quotaInfo);
+      
+      // Throw specialized quota error for upstream handling
+      throw new QuotaExceededError(quotaInfo);
+    }
+
     logger.error('Error generating summary:', error);
     throw new Error('Failed to generate summary');
   }
@@ -94,17 +157,26 @@ export const generateSummary = async (
 /**
  * Extract key concepts from content
  */
-export const extractConcepts = async (content: string): Promise<{
+export const extractConcepts = async (
+  content: string,
+  userId?: string,
+  contentId?: string
+): Promise<{
   topics: string[];
   concepts: string[];
   terms: Array<{ term: string; definition: string }>;
 }> => {
+  const startTime = Date.now();
+
   try {
-    const llm = createLLM({ temperature: 0.3 });
+    const llm = await createLLM(AITaskType.CONCEPT_EXTRACTION, { 
+      temperature: 0.3,
+      maxOutputTokens: 2048, // Sufficient for concept extraction
+    });
 
     const chain = new LLMChain({
-      llm,
-      prompt: conceptExtractionPrompt,
+      llm: llm as any, // Type assertion due to @langchain/core version mismatch
+      prompt: conceptExtractionPrompt as any,
       outputParser: conceptParser,
     });
 
@@ -112,8 +184,61 @@ export const extractConcepts = async (content: string): Promise<{
       content: content.substring(0, 10000),
     });
 
+    const generationTime = Date.now() - startTime;
+
+    // Log successful API request
+    if (userId) {
+      await quotaService.logApiRequest({
+        userId: userId as any,
+        contentId: contentId as any,
+        apiProvider: 'gemini',
+        endpoint: 'generateContent',
+        requestType: 'other',
+        status: 'success',
+        requestDuration: generationTime,
+        metadata: {
+          model: GEMINI_MODELS.FLASH,
+          taskType: 'concept_extraction'
+        }
+      }).catch(err => logger.error('Failed to log API request:', err));
+    }
+
     return result.text;
   } catch (error) {
+    const generationTime = Date.now() - startTime;
+
+    // Check if this is a parsing error from truncated JSON
+    if (error instanceof Error && error.message.includes('Failed to parse')) {
+      logger.error('Error extracting concepts:', error);
+      
+      // Return minimal fallback structure instead of failing completely
+      logger.warn('Using fallback concept extraction due to parsing error');
+      return {
+        topics: [],
+        concepts: [],
+        terms: [],
+      };
+    }
+
+    // Log failed API request
+    if (userId) {
+      await quotaService.logApiRequest({
+        userId: userId as any,
+        contentId: contentId as any,
+        apiProvider: 'gemini',
+        endpoint: 'generateContent',
+        requestType: 'other',
+        status: isQuotaError(error) ? 'quota_exceeded' : 'failure',
+        requestDuration: generationTime,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: isQuotaError(error) ? '429' : '500',
+        metadata: {
+          model: GEMINI_MODELS.FLASH,
+          taskType: 'concept_extraction'
+        }
+      }).catch(err => logger.error('Failed to log API request:', err));
+    }
+
     logger.error('Error extracting concepts:', error);
     throw error;
   }
