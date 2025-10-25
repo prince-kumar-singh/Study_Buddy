@@ -31,6 +31,7 @@ import quizRoutes from './routes/quiz.routes';
 import qaRoutes from './routes/qa.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import processingRoutes from './routes/processing.routes';
+import quotaRoutes from './routes/quota.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -39,6 +40,9 @@ import { rateLimiter } from './middleware/rateLimit.middleware';
 
 // Import WebSocket handler
 import { initializeWebSocket } from './config/websocket';
+
+// Import scheduled jobs
+import { scheduledJobsService } from './services/jobs/scheduled-jobs.service';
 
 const app: Application = express();
 const httpServer = createServer(app);
@@ -90,6 +94,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/qa', qaRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/processing', processingRoutes);
+app.use('/api/quota', quotaRoutes);
 
 // API Documentation
 app.get('/api-docs', (_req: Request, res: Response) => {
@@ -156,6 +161,8 @@ process.on('SIGINT', gracefulShutdown);
 // Start server
 const startServer = async () => {
   try {
+    logger.info('🔄 Starting server initialization...');
+    
     // Connect to databases
     await connectDatabase();
     logger.info('✅ MongoDB connected');
@@ -169,12 +176,27 @@ const startServer = async () => {
 
     // Initialize vector store (optional for MVP)
     if (process.env.ENABLE_VECTOR_STORE === 'true') {
-      await initializeVectorStore();
-      logger.info('✅ Vector store initialized');
+      try {
+        await initializeVectorStore();
+        logger.info('✅ Vector store initialized');
+      } catch (error) {
+        logger.error('❌ Vector store initialization failed:', error);
+        logger.warn('⚠️ Continuing without vector store - Q&A features will be limited');
+      }
     } else {
       logger.warn('⚠️ Vector store disabled - Q&A features will be limited');
     }
 
+    // Start scheduled jobs
+    if (process.env.ENABLE_SCHEDULED_JOBS !== 'false') {
+      scheduledJobsService.start();
+      logger.info('✅ Scheduled jobs started');
+    } else {
+      logger.warn('⚠️ Scheduled jobs disabled');
+    }
+
+    logger.info('🔄 Starting HTTP server...');
+    
     // Start HTTP server
     httpServer.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT} in ${NODE_ENV} mode`);
@@ -186,6 +208,37 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received. Gracefully shutting down...');
+  scheduledJobsService.stop();
+  httpServer.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received. Gracefully shutting down...');
+  scheduledJobsService.stop();
+  httpServer.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
 
 startServer();
 
