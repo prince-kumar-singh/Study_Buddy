@@ -50,6 +50,14 @@ Requirements:
 
 {format_instructions}
 
+CRITICAL JSON FORMATTING RULES:
+- Output MUST be complete valid JSON array
+- Do NOT truncate or cut off JSON output mid-structure
+- Ensure all strings are properly closed with quotes
+- Ensure all objects are properly closed with braces
+- Avoid newlines inside string values (use \\n for line breaks within strings)
+- Complete ALL flashcards before ending the response
+
 Generate the flashcards now:`
 );
 
