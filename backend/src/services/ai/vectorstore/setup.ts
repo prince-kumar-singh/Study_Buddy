@@ -46,7 +46,7 @@ export const initializeVectorStore = async (): Promise<void> => {
 
     const index = pineconeClient.Index(indexName);
 
-    const embeddings = createEmbeddings();
+    const embeddings = await createEmbeddings();
 
     vectorStore = new PineconeStore(embeddings, {
       pineconeIndex: index,
