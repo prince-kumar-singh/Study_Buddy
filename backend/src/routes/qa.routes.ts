@@ -1,10 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
+import mongoose from 'mongoose';
 import { askQuestion } from '../services/ai/chains/qa.chain';
 import { QA } from '../models/QA.model';
 import { User } from '../models/User.model';
 import { ApiError } from '../middleware/error.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { qaRateLimiter } from '../middleware/rateLimit.middleware';
+import { contentDeleteService } from '../services/content/delete.service';
 import jwt from 'jsonwebtoken';
 
 const router = Router();
@@ -131,5 +134,72 @@ router.get('/history/:contentId', async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * DELETE /api/qa/bulk-delete
+ * Delete multiple Q&A records
+ */
+router.delete('/bulk-delete',
+  authenticate,
+  [
+    body('qaIds').isArray({ min: 1 }).withMessage('At least one Q&A ID required'),
+    body('qaIds.*').isMongoId().withMessage('Invalid Q&A ID format'),
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new ApiError(400, errors.array()[0].msg);
+      }
+
+      const userId = req.user!.id;
+      const { qaIds } = req.body;
+
+      const result = await contentDeleteService.deleteQARecords(qaIds, userId);
+
+      res.json({
+        success: true,
+        message: `${result.deletedCount} Q&A record(s) deleted successfully`,
+        data: {
+          deletedCount: result.deletedCount,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/qa/:id
+ * Delete a single Q&A record
+ */
+router.delete('/:id',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+
+      // Validate ObjectId
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new ApiError(400, 'Invalid Q&A ID');
+      }
+
+      const result = await contentDeleteService.deleteQARecords([id], userId);
+
+      if (result.deletedCount === 0) {
+        throw new ApiError(404, 'Q&A record not found');
+      }
+
+      res.json({
+        success: true,
+        message: 'Q&A record deleted successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 export default router;

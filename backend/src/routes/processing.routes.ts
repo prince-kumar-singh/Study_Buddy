@@ -59,8 +59,12 @@ router.post(
           message: 'Processing started. You will receive real-time updates via WebSocket.',
           data: { contentId: id },
         });
+      } else if (content.type === 'pdf' || content.type === 'docx' || content.type === 'txt') {
+        // For documents that failed or need reprocessing, we need to reload the document
+        // This is a manual restart - the automatic processing happens on upload
+        throw new ApiError(400, 'Document reprocessing requires re-upload. Documents are automatically processed on upload.');
       } else {
-        throw new ApiError(400, 'Document processing not implemented yet');
+        throw new ApiError(400, `Unsupported content type: ${content.type}`);
       }
     } catch (error) {
       next(error);
