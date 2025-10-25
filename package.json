@@ -35,6 +35,9 @@
   ],
   "author": "Study Buddy Team",
   "license": "MIT",
+  "overrides": {
+    "@langchain/core": "^0.1.45"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2"
   },
