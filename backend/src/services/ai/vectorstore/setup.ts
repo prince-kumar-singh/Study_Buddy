@@ -70,6 +70,13 @@ export const getVectorStore = (): PineconeStore => {
 };
 
 /**
+ * Get Pinecone client instance
+ */
+export const getPineconeClient = (): Pinecone | null => {
+  return pineconeClient;
+};
+
+/**
  * Add documents to vector store
  */
 export const addDocumentsToVectorStore = async (
@@ -96,25 +103,54 @@ export const addDocumentsToVectorStore = async (
 };
 
 /**
- * Delete documents by content ID
+ * Delete documents by content ID using Pinecone's metadata filter
+ * @see https://docs.pinecone.io/guides/data/delete-data#delete-records-by-metadata
+ * @see https://docs.pinecone.io/docs/metadata-filtering#deleting-vectors-by-metadata-filter
  */
-export const deleteContentFromVectorStore = async (contentId: string): Promise<void> => {
-  try {
-    if (!pineconeClient) {
-      throw new Error('Pinecone client not initialized');
+export const deleteContentFromVectorStore = async (
+  contentId: string, 
+  options: { retries?: number; throwOnError?: boolean } = {}
+): Promise<void> => {
+  const { retries = 3, throwOnError = true } = options;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (!pineconeClient) {
+        const error = new Error('Pinecone client not initialized');
+        logger.error(error.message);
+        if (throwOnError) throw error;
+        return;
+      }
+
+      const indexName = process.env.PINECONE_INDEX_NAME || 'study-buddy-transcripts';
+      const index = pineconeClient.Index(indexName);
+
+      // Use Pinecone's deleteMany() with metadata filter
+      // deleteMany accepts either an array of IDs or a filter object
+      await index.namespace('').deleteMany({
+        contentId: { $eq: contentId },
+      });
+
+      logger.info(`Deleted vectors for content ${contentId} from vector store (attempt ${attempt}/${retries})`);
+      return; // Success
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.warn(`Failed to delete vectors for content ${contentId} (attempt ${attempt}/${retries}):`, error);
+      
+      if (attempt < retries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
+  }
 
-    const indexName = process.env.PINECONE_INDEX_NAME || 'study-buddy-transcripts';
-    const index = pineconeClient.Index(indexName);
-
-    // Delete all vectors with this contentId in metadata
-    await index.namespace('').deleteMany({
-      filter: { contentId: { $eq: contentId } },
-    });
-
-    logger.info(`Deleted content ${contentId} from vector store`);
-  } catch (error) {
-    logger.error('Error deleting content from vector store:', error);
-    throw error;
+  // All retries failed
+  logger.error(`Failed to delete vectors for content ${contentId} after ${retries} attempts:`, lastError);
+  if (throwOnError && lastError) {
+    throw lastError;
   }
 };
+
+

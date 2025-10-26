@@ -1,5 +1,6 @@
 import { StructuredOutputParser } from 'langchain/output_parsers';
 import { z } from 'zod';
+import { logger } from '../../../config/logger';
 
 /**
  * Zod schema for quiz question validation
@@ -228,6 +229,8 @@ export const parseQuizJson = (jsonString: string): any => {
         parsed = JSON.parse(truncated);
       } catch (truncateError) {
         // Last resort: extract only complete questions from the array
+        logger.warn('Attempting to extract complete questions from truncated JSON...');
+        
         const questionsMatch = cleaned.match(/"questions":\s*\[(.*)/s);
         if (questionsMatch) {
           const questionsText = questionsMatch[1];
@@ -274,6 +277,7 @@ export const parseQuizJson = (jsonString: string): any => {
                     currentObj = '';
                   } catch (e) {
                     // Skip invalid question
+                    logger.warn(`Skipping invalid question object in truncated JSON`);
                     currentObj = '';
                   }
                 }
@@ -286,14 +290,34 @@ export const parseQuizJson = (jsonString: string): any => {
           }
           
           if (questions.length > 0) {
-            return { questions };
+            logger.info(`Successfully extracted ${questions.length} complete questions from truncated JSON`);
+            return { 
+              questions,
+              _warning: `Truncated response: only ${questions.length} questions recovered` 
+            };
           }
         }
         
-        // Create a more readable error message
+        // Create a more readable error message with context
         const preview = jsonString.length > 500 
           ? jsonString.substring(0, 500) + '...' 
           : jsonString;
+        
+        // Check if this is clearly a truncation issue
+        const isTruncated = jsonString.length > 1000 && (
+          (quoteCount % 2 !== 0) || 
+          (closeBraces < openBraces) || 
+          (closeBrackets < openBrackets)
+        );
+        
+        if (isTruncated) {
+          throw new Error(
+            `Failed to parse quiz JSON: Response was truncated mid-generation. ` +
+            `Try reducing question count or using a simpler difficulty level. ` +
+            `Preview: ${preview}`
+          );
+        }
+        
         throw new Error(`Failed to parse quiz JSON. Preview: ${preview}`);
       }
     }

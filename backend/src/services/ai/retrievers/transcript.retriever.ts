@@ -11,6 +11,7 @@ export const getVectorStoreRetriever = async (
   const vectorStore = getVectorStore();
 
   // Create retriever with filter for specific content
+  // Use Pinecone's query filter syntax with $eq operator
   const retriever = vectorStore.asRetriever({
     k, // Number of documents to retrieve
     filter: {
