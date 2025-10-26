@@ -1,5 +1,5 @@
 import { LLMChain } from 'langchain/chains';
-import { createLLM } from '../../../config/langchain.config';
+import { createLLM, safeChainCall } from '../../../config/langchain.config';
 import { AITaskType, GEMINI_MODELS } from '../../../config/ai.config';
 import {
   quickSummaryPrompt,
@@ -72,9 +72,12 @@ export const generateSummary = async (
       prompt: prompt as any,
     });
 
-    // Generate summary
-    const result = await chain.call({
+    // Generate summary using safe chain call
+    const result = await safeChainCall(chain, {
       content: content.substring(0, 8000), // Limit content length
+    }, {
+      taskType: `summary_${type}`,
+      modelName: GEMINI_MODELS.FLASH,
     });
 
     const summaryContent = result.text.trim();
@@ -180,8 +183,11 @@ export const extractConcepts = async (
       outputParser: conceptParser,
     });
 
-    const result = await chain.call({
+    const result = await safeChainCall(chain, {
       content: content.substring(0, 10000),
+    }, {
+      taskType: 'concept_extraction',
+      modelName: GEMINI_MODELS.FLASH,
     });
 
     const generationTime = Date.now() - startTime;

@@ -1,6 +1,6 @@
 import { ConversationalRetrievalQAChain } from 'langchain/chains';
 import { BufferMemory } from 'langchain/memory';
-import { createLLM, getCurrentModelName } from '../../../config/langchain.config';
+import { createLLM, getCurrentModelName, safeChainCall } from '../../../config/langchain.config';
 import { AITaskType } from '../../../config/ai.config';
 import { qaSystemPrompt } from '../prompts/summary.prompts';
 import { getVectorStoreRetriever } from '../retrievers/transcript.retriever';
@@ -79,8 +79,11 @@ export const askQuestion = async (
     });
 
     // Ask question
-    const result = await chain.call({
+    const result = await safeChainCall(chain, {
       question,
+    }, {
+      taskType: streaming ? 'qa_streaming' : 'qa_standard',
+      modelName: selectedModel,
     });
 
     // Extract source segments from returned documents

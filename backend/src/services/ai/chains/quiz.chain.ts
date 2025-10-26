@@ -1,5 +1,5 @@
 import { LLMChain } from 'langchain/chains';
-import { createLLM, getCurrentModelName } from '../../../config/langchain.config';
+import { createLLM, getCurrentModelName, safeChainCall } from '../../../config/langchain.config';
 import { AITaskType } from '../../../config/ai.config';
 import {
   quizGenerationPrompt,
@@ -83,18 +83,39 @@ export const generateQuiz = async (
   try {
     // Calculate question count if not provided
     const durationMs = endTime - startTime;
-    const questionCount = count || calculateQuestionCount(durationMs);
+    let questionCount = count || calculateQuestionCount(durationMs);
 
-    logger.info(`Generating ${questionCount} quiz questions at ${difficulty} level`);
+    // Apply safety cap based on difficulty to prevent truncation
+    // Advanced questions are longer, so we need to limit them more
+    const maxQuestionsByDifficulty = {
+      beginner: 30,
+      intermediate: 20,
+      advanced: 12, // Reduced from 30 to prevent truncation
+    };
+    
+    questionCount = Math.min(questionCount, maxQuestionsByDifficulty[difficulty]);
+
+    logger.info(`Generating ${questionCount} quiz questions at ${difficulty} level (capped at ${maxQuestionsByDifficulty[difficulty]})`);
 
     // Use Model Selector to choose appropriate model based on difficulty and transcript length
     const selectedModel = ModelSelector.selectQuizModel(difficulty, transcript.length);
+
+    // Calculate dynamic token limit based on question count and difficulty
+    // Advanced questions need more tokens (avg ~400 tokens per question)
+    // Intermediate: ~250 tokens, Beginner: ~150 tokens
+    const tokensPerQuestion = difficulty === 'advanced' ? 500 : difficulty === 'intermediate' ? 300 : 200;
+    const estimatedTokens = Math.min(
+      questionCount * tokensPerQuestion + 1000, // +1000 for metadata
+      30000 // Cap at 30k to avoid hitting model limits
+    );
+
+    logger.info(`Using ${estimatedTokens} max tokens for ${questionCount} ${difficulty} questions`);
 
     const llm = await createLLM(
       AITaskType.QUIZ_GENERATION,
       {
         temperature: 0.6, // Moderate temperature for varied but consistent questions
-        maxOutputTokens: 16384, // Very high token limit to prevent truncation of quiz JSON
+        maxOutputTokens: estimatedTokens,
         modelName: selectedModel,
       }
     );
@@ -108,25 +129,89 @@ export const generateQuiz = async (
       outputParser: quizParser,
     });
 
-    const result = await chain.call({
+    const result = await safeChainCall(chain, {
       transcript: transcript.substring(0, 10000), // Increased limit for better context
       count: questionCount,
       difficulty,
       format_instructions: quizParser.getFormatInstructions(),
+    }, {
+      taskType: `quiz_generation_${difficulty}`,
+      modelName: selectedModel,
     });
 
     // Parse and validate quiz with robust error handling
     let quizData: any;
 
-    if (typeof result.text === 'string') {
-      quizData = parseQuizJson(result.text);
+    // Debug logging to understand the result structure
+    logger.debug('LLMChain result structure:', {
+      resultType: typeof result,
+      isArray: Array.isArray(result),
+      keys: result ? Object.keys(result) : 'null',
+      hasText: result && 'text' in result,
+      textType: result?.text ? typeof result.text : 'undefined'
+    });
+
+    // Safety check: Ensure result exists and has text
+    if (!result) {
+      throw new Error('LLM chain returned null or undefined result');
+    }
+
+    // Handle array result (some chain versions return [result])
+    const actualResult = Array.isArray(result) ? result[0] : result;
+    
+    if (!actualResult) {
+      throw new Error('LLM chain returned empty array result');
+    }
+
+    if (!actualResult.text && !actualResult.output) {
+      logger.error('LLM chain result missing text/output property:', { 
+        actualResult, 
+        keys: Object.keys(actualResult) 
+      });
+      throw new Error('LLM chain returned result without text or output property');
+    }
+
+    // Get text from result (try multiple possible properties)
+    const textContent = actualResult.text || actualResult.output || actualResult.response;
+    
+    if (!textContent) {
+      throw new Error('Could not extract text content from LLM result');
+    }
+
+    if (typeof textContent === 'string') {
+      quizData = parseQuizJson(textContent);
+    } else if (typeof textContent === 'object') {
+      quizData = textContent;
     } else {
-      quizData = result.text;
+      throw new Error(`Unexpected text content type: ${typeof textContent}`);
+    }
+
+    // Check if response was truncated (parser may have recovered partial questions)
+    const wasTruncated = quizData._warning?.includes('Truncated');
+    if (wasTruncated) {
+      logger.warn(`Quiz generation was truncated: ${quizData._warning}`);
     }
 
     // Safety check: Ensure questions array exists and is not empty
     if (!quizData || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
       throw new Error('LLM response does not contain valid questions array');
+    }
+
+    // If we got fewer questions than requested due to truncation, log it but continue
+    const recoveredCount = quizData.questions.length;
+    if (recoveredCount < questionCount) {
+      logger.warn(
+        `Recovered ${recoveredCount}/${questionCount} questions from ${difficulty} quiz ` +
+        `(${Math.round((recoveredCount / questionCount) * 100)}% success rate)`
+      );
+      
+      // If we got less than 50% of requested questions, consider it a failure
+      if (recoveredCount < Math.ceil(questionCount / 2)) {
+        throw new Error(
+          `Only recovered ${recoveredCount}/${questionCount} questions from truncated response. ` +
+          `This is below the minimum threshold. Try reducing question count.`
+        );
+      }
     }
 
     // Normalize all questions: map sourceTimestamp → sourceSegment

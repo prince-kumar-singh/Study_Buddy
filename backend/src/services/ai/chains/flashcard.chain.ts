@@ -1,5 +1,5 @@
 import { LLMChain } from 'langchain/chains';
-import { createLLM, getCurrentModelName } from '../../../config/langchain.config';
+import { createLLM, getCurrentModelName, safeChainCall } from '../../../config/langchain.config';
 import { AITaskType } from '../../../config/ai.config';
 import { flashcardGenerationPrompt } from '../prompts/summary.prompts';
 import { flashcardParser, parseFlashcardJson } from '../parsers/flashcard.parser';
@@ -60,10 +60,13 @@ export const generateFlashcards = async (
       outputParser: flashcardParser,
     });
 
-    const result = await chain.call({
+    const result = await safeChainCall(chain, {
       transcript: transcript.substring(0, 6000), // Limit transcript length
       count,
       format_instructions: flashcardParser.getFormatInstructions(),
+    }, {
+      taskType: 'flashcard_generation',
+      modelName: selectedModel,
     });
 
     // Parse and validate flashcards with robust JSON parsing

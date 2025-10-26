@@ -12,13 +12,14 @@ TRANSCRIPT:
 {transcript}
 
 REQUIREMENTS:
-- Generate {count} questions suitable for beginners
+- Generate EXACTLY {count} questions suitable for beginners
 - Focus on fundamental concepts and basic understanding
 - Use simple, clear language
 - Include a mix of question types: multiple choice, true/false, fill-in-the-blank
 - Each question should test one specific concept
 - Provide clear explanations for correct answers
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds from the transcript
+- Keep questions under 150 words, explanations under 100 words
 
 OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON (absolutely NO markdown code fences like \`\`\`json or \`\`\`)
@@ -28,16 +29,17 @@ OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 5. Ensure ALL objects are properly closed with braces
 6. Escape newlines in string values as \\n (not actual newlines)
 7. If you must use quotes inside strings, escape them as \\"
+8. PRIORITIZE COMPLETION: If running low on output space, generate FEWER questions with COMPLETE structure
 
 JSON Structure:
 {{
   "questions": [
     {{
-      "question": "Your question here (avoid newlines, use \\\\n)",
+      "question": "Your question here (max 150 words, avoid newlines, use \\\\n)",
       "type": "mcq",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": "Option A",
-      "explanation": "Brief explanation here (avoid newlines, use \\\\n)",
+      "explanation": "Brief explanation here (max 100 words, avoid newlines, use \\\\n)",
       "difficulty": "beginner",
       "sourceSegment": {{ "startTime": 0, "endTime": 1000 }},
       "points": 10,
@@ -62,13 +64,14 @@ TRANSCRIPT:
 {transcript}
 
 REQUIREMENTS:
-- Generate {count} questions for intermediate learners
+- Generate EXACTLY {count} questions for intermediate learners
 - Test application of concepts and understanding of relationships
 - Use moderate complexity in language and concepts
 - Include multiple choice, fill-in-the-blank, and short essay questions
 - Each question should require deeper thinking than basic recall
 - Provide detailed explanations that expand on the concepts
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds from the transcript
+- Keep questions under 200 words, explanations under 150 words
 
 OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON (absolutely NO markdown code fences like \`\`\`json or \`\`\`)
@@ -78,16 +81,17 @@ OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 5. Ensure ALL objects are properly closed with braces
 6. Escape newlines in string values as \\n (not actual newlines)
 7. If you must use quotes inside strings, escape them as \\"
+8. PRIORITIZE COMPLETION: If running low on output space, generate FEWER questions with COMPLETE structure
 
 JSON Structure:
 {{
   "questions": [
     {{
-      "question": "Your question here (avoid newlines, use \\\\n)",
+      "question": "Your question here (max 200 words, avoid newlines, use \\\\n)",
       "type": "mcq",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": "Option A",
-      "explanation": "Detailed explanation here (avoid newlines, use \\\\n)",
+      "explanation": "Detailed explanation here (max 150 words, avoid newlines, use \\\\n)",
       "difficulty": "intermediate",
       "sourceSegment": {{ "startTime": 0, "endTime": 1000 }},
       "points": 15,
@@ -112,13 +116,14 @@ TRANSCRIPT:
 {transcript}
 
 REQUIREMENTS:
-- Generate {count} questions for advanced learners
+- Generate EXACTLY {count} questions for advanced learners
 - Test synthesis, analysis, and evaluation of concepts
 - Use complex scenarios and multi-step reasoning
 - Include analytical multiple choice, essay questions, and complex applications
 - Each question should require deep understanding and critical thinking
 - Provide comprehensive explanations with connections to broader concepts
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds from the transcript
+- CRITICAL: Keep question text under 300 words, explanations under 200 words to ensure completion
 
 OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON (absolutely NO markdown code fences like \`\`\`json or \`\`\`)
@@ -128,15 +133,17 @@ OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 5. Ensure ALL objects are properly closed with braces
 6. Escape newlines in string values as \\n (not actual newlines)
 7. If you must use quotes inside strings, escape them as \\"
+8. PRIORITIZE COMPLETION: If running low on output space, generate FEWER questions with COMPLETE structure rather than truncating
+9. Keep questions and explanations concise but meaningful
 
 JSON Structure:
 {{
   "questions": [
     {{
-      "question": "Your complex question here (avoid newlines, use \\\\n)",
+      "question": "Your complex question here (max 300 words, avoid newlines, use \\\\n)",
       "type": "essay",
-      "correctAnswer": "Key points for answer (avoid newlines, use \\\\n)",
-      "explanation": "Comprehensive explanation here (avoid newlines, use \\\\n)",
+      "correctAnswer": "Key points for answer (concise, avoid newlines, use \\\\n)",
+      "explanation": "Comprehensive explanation here (max 200 words, avoid newlines, use \\\\n)",
       "difficulty": "advanced",
       "sourceSegment": {{ "startTime": 0, "endTime": 1000 }},
       "points": 20,
