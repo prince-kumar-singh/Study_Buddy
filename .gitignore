@@ -69,3 +69,5 @@ readme*
 pm files/
 .github/
 DOCUMENTATION/
+.qodo/
+*.txt
