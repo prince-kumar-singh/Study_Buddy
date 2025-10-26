@@ -10,6 +10,7 @@
 
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
+import { HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 import { logger } from './logger';
 import {
   AITaskType,
@@ -79,6 +80,25 @@ export const createLLM = async (
       maxOutputTokens: options?.maxOutputTokens ?? langchainConfig.llm.maxOutputTokens,
       topK: options?.topK ?? langchainConfig.llm.topK,
       topP: options?.topP ?? langchainConfig.llm.topP,
+      // Add safety settings to prevent blocking
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+      ],
     });
   } catch (error) {
     logger.error('Failed to create LLM, falling back to default:', error);
@@ -89,6 +109,25 @@ export const createLLM = async (
       model: GEMINI_MODELS.FLASH, // Use stable fallback
       temperature: options?.temperature ?? langchainConfig.llm.temperature,
       maxOutputTokens: options?.maxOutputTokens ?? langchainConfig.llm.maxOutputTokens,
+      // Add safety settings to fallback as well
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+      ],
     });
   }
 };
@@ -140,7 +179,10 @@ export const executeLangChainWithRetry = async <T>(
       errorMessage.includes('rate limit') ||
       errorMessage.includes('timeout') ||
       errorMessage.includes('temporarily unavailable') ||
-      errorMessage.includes('try again')
+      errorMessage.includes('try again') ||
+      errorMessage.includes('cannot read properties of undefined') || // LangChain parsing error
+      errorMessage.includes('candidates') || // Gemini API empty response
+      errorMessage.includes('blocked') // Content filtering
     );
   };
   
@@ -225,6 +267,56 @@ export const executeLangChainWithRetry = async <T>(
     `Models tried: ${fallbacksUsed.join(' → ')}. ` +
     `Last error: ${lastError?.message || 'Unknown error'}`
   );
+};
+
+/**
+ * Safely execute a LangChain chain with error handling for empty Gemini responses
+ * Wraps chain.call() to catch and provide better error messages
+ */
+export const safeChainCall = async <T = any>(
+  chain: any,
+  inputs: any,
+  context?: { taskType?: string; modelName?: string }
+): Promise<T> => {
+  try {
+    const result = await chain.call(inputs);
+    
+    // Check if result is valid
+    if (!result) {
+      throw new Error(
+        `Chain returned null/undefined result. This may indicate the Gemini API blocked the response due to safety filters. ` +
+        `Task: ${context?.taskType || 'unknown'}, Model: ${context?.modelName || 'unknown'}`
+      );
+    }
+    
+    // Handle array results (some chains return [result])
+    const actualResult = Array.isArray(result) ? result[0] : result;
+    
+    if (!actualResult) {
+      throw new Error(
+        `Chain returned empty array result. This may indicate the Gemini API blocked the response. ` +
+        `Task: ${context?.taskType || 'unknown'}, Model: ${context?.modelName || 'unknown'}`
+      );
+    }
+    
+    return actualResult as T;
+  } catch (error: any) {
+    // Enhance error messages for common issues
+    if (error.message?.includes('Cannot read properties of undefined')) {
+      throw new Error(
+        `Gemini API returned an empty response (no candidates). This typically happens when: ` +
+        `1) Content was blocked by safety filters, 2) API returned malformed response, or 3) Model is temporarily unavailable. ` +
+        `Original error: ${error.message}. ` +
+        `Task: ${context?.taskType || 'unknown'}, Model: ${context?.modelName || 'unknown'}`
+      );
+    }
+    
+    // Re-throw with additional context
+    throw new Error(
+      `Chain execution failed: ${error.message}. ` +
+      `Task: ${context?.taskType || 'unknown'}, Model: ${context?.modelName || 'unknown'}`
+    );
+  }
 };
 
 /**

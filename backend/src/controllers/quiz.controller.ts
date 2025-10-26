@@ -5,6 +5,11 @@ import { logger } from '../config/logger';
 /**
  * Generate quiz for content
  * POST /api/quiz/generate/:contentId
+ * Body: { difficulty?: string, regenerate?: boolean }
+ * 
+ * Note: By default, this endpoint will ALWAYS generate a new quiz
+ * and deactivate any existing quiz of the same difficulty.
+ * Pass regenerate: false to return existing quiz if present.
  */
 export const generateQuiz = async (
   req: Request,
@@ -13,7 +18,7 @@ export const generateQuiz = async (
 ): Promise<void> => {
   try {
     const { contentId } = req.params;
-    const { difficulty = 'intermediate' } = req.body;
+    const { difficulty = 'intermediate', regenerate = true } = req.body;
     const userId = (req as any).user.id;
 
     // Validate difficulty
@@ -27,17 +32,22 @@ export const generateQuiz = async (
       return;
     }
 
-    logger.info(`Generating quiz for content ${contentId}, user ${userId}, difficulty ${difficulty}`);
+    logger.info(
+      `${regenerate ? 'Regenerating' : 'Generating'} quiz for content ${contentId}, ` +
+      `user ${userId}, difficulty ${difficulty}`
+    );
 
     const quiz = await QuizService.generateQuizFromContent(
       contentId,
       userId,
-      difficulty as 'beginner' | 'intermediate' | 'advanced'
+      difficulty as 'beginner' | 'intermediate' | 'advanced',
+      { regenerate }
     );
 
     res.status(201).json({
       success: true,
       data: quiz,
+      message: regenerate ? 'Quiz regenerated successfully' : 'Quiz generated successfully',
     });
   } catch (error: any) {
     logger.error('Error in generateQuiz controller:', error);

@@ -64,7 +64,8 @@ export class QuizService {
   static async generateQuizFromContent(
     contentId: string,
     userId: string,
-    difficulty: 'beginner' | 'intermediate' | 'advanced' = 'intermediate'
+    difficulty: 'beginner' | 'intermediate' | 'advanced' = 'intermediate',
+    options?: { regenerate?: boolean }
   ): Promise<IQuiz> {
     // Use lock to prevent concurrent generation
     const lockKey = `${contentId}:${userId}:${difficulty}`;
@@ -90,9 +91,22 @@ export class QuizService {
           isActive: true,
         });
 
+        // CHANGED BEHAVIOR: Always deactivate existing quiz and generate new one
+        // Users can call the generate endpoint multiple times to get fresh questions
         if (existingQuiz) {
-          logger.info(`Returning existing quiz for content ${contentId} at ${difficulty} level`);
-          return existingQuiz;
+          if (options?.regenerate === false) {
+            // Only return existing if explicitly told not to regenerate
+            logger.info(`Returning existing quiz for content ${contentId} at ${difficulty} level`);
+            return existingQuiz;
+          }
+          
+          // Default behavior: deactivate old quiz and generate new one
+          logger.info(
+            `Existing quiz found for content ${contentId} at ${difficulty} level. ` +
+            `Deactivating old quiz ${existingQuiz._id} and generating new one.`
+          );
+          existingQuiz.isActive = false;
+          await existingQuiz.save();
         }
 
         // Get transcript
@@ -333,7 +347,13 @@ export class QuizService {
       }
 
       // Generate a single intermediate difficulty quiz as fallback
-      const quiz = await this.generateQuizFromContent(contentId, userId, 'intermediate');
+      // Pass regenerate: false to return existing if one was created concurrently
+      const quiz = await this.generateQuizFromContent(
+        contentId, 
+        userId, 
+        'intermediate',
+        { regenerate: false }
+      );
 
       return { existed: false, quizzes: [quiz] };
     } catch (error: any) {

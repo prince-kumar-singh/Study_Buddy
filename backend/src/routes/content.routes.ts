@@ -15,6 +15,7 @@ import {
 import { uploadToCloudinary } from '../config/cloudinary.config';
 import { processUploadedFile } from '../services/ai/loaders/document.loader';
 import { Content } from '../models/Content.model';
+import { Summary } from '../models/Summary.model';
 import { logger } from '../config/logger';
 import { ContentProcessor } from '../services/processing/content.processor';
 import { wsService } from '../config/websocket';
@@ -121,6 +122,56 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     res.json({
       success: true,
       data: { content },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/contents/:id/summaries
+ * Get all summaries (quick, brief, detailed) for a specific content
+ */
+router.get('/:id/summaries', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, 'Invalid content ID');
+    }
+
+    // Verify content exists and belongs to user
+    const content = await Content.findOne({
+      _id: id,
+      userId: new mongoose.Types.ObjectId(userId),
+      isDeleted: false,
+    });
+
+    if (!content) {
+      throw new ApiError(404, 'Content not found');
+    }
+
+    // Fetch all summaries for this content
+    const summaries = await Summary.find({
+      contentId: new mongoose.Types.ObjectId(id),
+    })
+      .sort({ type: 1 }) // Sort: quick, brief, detailed
+      .select('-__v')
+      .lean();
+
+    logger.info(`Retrieved ${summaries.length} summaries for content ${id}`);
+
+    res.json({
+      success: true,
+      data: { 
+        summaries,
+        count: summaries.length,
+        hasQuick: summaries.some(s => s.type === 'quick'),
+        hasBrief: summaries.some(s => s.type === 'brief'),
+        hasDetailed: summaries.some(s => s.type === 'detailed'),
+      },
     });
   } catch (error) {
     next(error);
@@ -615,7 +666,16 @@ router.delete('/:id/permanent', async (req: Request, res: Response, next: NextFu
 
 /**
  * POST /api/contents/bulk-delete
- * Bulk delete multiple contents
+ * Bulk delete multiple contents with comprehensive phase-level tracking
+ * 
+ * Request body:
+ * - contentIds: string[] - Array of content IDs to delete
+ * - permanent: boolean (optional) - If true, permanently delete; if false, soft delete
+ * 
+ * Response includes:
+ * - Per-item deletion results with phase-level status (validation, Pinecone, MongoDB, Cloudinary)
+ * - Aggregate statistics (success/failure counts)
+ * - Inconsistent state warnings for items that failed in MongoDB after Pinecone deletion
  */
 router.post('/bulk-delete', 
   [
@@ -639,13 +699,46 @@ router.post('/bulk-delete',
         permanent
       );
 
+      // Build response message
+      let message = `${result.totalSucceeded} content(s) deleted successfully`;
+      if (result.totalFailed > 0) {
+        message += `, ${result.totalFailed} failed`;
+      }
+      if (result.totalPartiallyFailed > 0) {
+        message += `. WARNING: ${result.totalPartiallyFailed} item(s) in inconsistent state (Pinecone deleted but MongoDB failed)`;
+      }
+
+      // Extract failed items for easier client handling
+      const failedItems = result.results
+        .filter(r => !r.success)
+        .map(r => ({
+          contentId: r.contentId,
+          reason: r.message,
+          phases: r.phases,
+        }));
+
+      const partiallyFailedItems = result.results
+        .filter(r => !r.success && r.phases.pinecone.success && !r.phases.mongodb.success)
+        .map(r => ({
+          contentId: r.contentId,
+          warning: 'Pinecone deleted but MongoDB failed - manual intervention may be required',
+        }));
+
       res.json({
         success: result.success,
-        message: `${result.successCount} content(s) deleted successfully, ${result.failedCount} failed`,
+        message,
         data: {
-          successCount: result.successCount,
-          failedCount: result.failedCount,
+          summary: {
+            totalRequested: result.totalRequested,
+            totalSucceeded: result.totalSucceeded,
+            totalFailed: result.totalFailed,
+            totalPartiallyFailed: result.totalPartiallyFailed,
+            processingTimeMs: result.processingTimeMs,
+          },
+          phaseStatistics: result.summary,
           results: result.results,
+          failedItems,
+          partiallyFailedItems,
         },
       });
     } catch (error) {
