@@ -71,3 +71,4 @@ pm files/
 DOCUMENTATION/
 .qodo/
 *.txt
+tests/
