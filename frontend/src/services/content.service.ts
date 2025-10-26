@@ -74,4 +74,8 @@ export const contentService = {
   async resumeProcessing(contentId: string, fromStage?: string): Promise<any> {
     return apiClient.post(`/contents/${contentId}/resume`, { fromStage })
   },
+
+  async getSummaries(contentId: string): Promise<any> {
+    return apiClient.get(`/contents/${contentId}/summaries`)
+  },
 }

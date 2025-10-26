@@ -3,12 +3,31 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { contentService, Content as ContentType } from '../services/content.service'
 import { ProcessingStatus } from '../components/ProcessingStatus'
+import { SummaryDisplay } from '../components/SummaryDisplay'
+
+interface Summary {
+  _id: string
+  contentId: string
+  type: 'quick' | 'brief' | 'detailed'
+  content: string
+  keyPoints: string[]
+  topics: string[]
+  metadata: {
+    wordCount: number
+    generationTime: number
+    model: string
+  }
+  createdAt: string
+  updatedAt: string
+}
 
 const Content = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [content, setContent] = useState<ContentType | null>(null)
+  const [summaries, setSummaries] = useState<Summary[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingSummaries, setIsLoadingSummaries] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchContent = async () => {
@@ -19,10 +38,30 @@ const Content = () => {
       setError(null)
       const response = await contentService.getContentById(id)
       setContent(response.data.content)
+      
+      // If content is completed, fetch summaries
+      if (response.data.content.status === 'completed') {
+        fetchSummaries()
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load content')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchSummaries = async () => {
+    if (!id) return
+
+    try {
+      setIsLoadingSummaries(true)
+      const response = await contentService.getSummaries(id)
+      setSummaries(response.data.summaries || [])
+    } catch (err: any) {
+      console.error('Failed to load summaries:', err)
+      // Don't show error to user - summaries are optional
+    } finally {
+      setIsLoadingSummaries(false)
     }
   }
 
@@ -91,9 +130,17 @@ const Content = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Processing Status */}
-          <div className="lg:col-span-2">
+          {/* Left Column - Processing Status & Summaries */}
+          <div className="lg:col-span-2 space-y-6">
             <ProcessingStatus content={content} onResume={handleResume} />
+            
+            {/* Show summaries if content is completed */}
+            {content.status === 'completed' && (
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Summaries</h2>
+                <SummaryDisplay summaries={summaries} isLoading={isLoadingSummaries} />
+              </div>
+            )}
           </div>
 
           {/* Right Column - Content Info */}
