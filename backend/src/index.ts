@@ -32,6 +32,7 @@ import qaRoutes from './routes/qa.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import processingRoutes from './routes/processing.routes';
 import quotaRoutes from './routes/quota.routes';
+import adminConsistencyRoutes from './routes/admin-consistency.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware';
@@ -95,6 +96,7 @@ app.use('/api/qa', qaRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/processing', processingRoutes);
 app.use('/api/quota', quotaRoutes);
+app.use('/api/admin/consistency', adminConsistencyRoutes);
 
 // API Documentation
 app.get('/api-docs', (_req: Request, res: Response) => {
@@ -113,6 +115,7 @@ app.get('/api-docs', (_req: Request, res: Response) => {
         'POST /api/contents/upload-document': 'Upload document',
         'GET /api/contents': 'Get all user contents',
         'GET /api/contents/:id': 'Get content by ID',
+        'GET /api/contents/:id/summaries': 'Get summaries for content',
         'DELETE /api/contents/:id': 'Delete content',
       },
       flashcards: {
