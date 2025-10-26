@@ -9,12 +9,14 @@ import ContentDetail from './pages/ContentDetail'
 import Flashcards from './pages/Flashcards'
 import QuizList from './pages/QuizList'
 import TakeQuiz from './pages/Quiz'
+import Homepage from './pages/Homepage'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
 
   return (
     <Routes>
+      <Route path="/" element={<Homepage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route
@@ -45,7 +47,6 @@ function App() {
         path="/quiz/:quizId"
         element={isAuthenticated ? <TakeQuiz /> : <Navigate to="/login" />}
       />
-      <Route path="/" element={<Navigate to="/dashboard" />} />
     </Routes>
   )
 }
