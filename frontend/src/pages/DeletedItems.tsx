@@ -159,7 +159,17 @@ export const DeletedItems: React.FC = () => {
                     for (const id of selectedIds) {
                       const content = deletedContents.find((c) => c._id === id);
                       if (content) {
-                        const token = localStorage.getItem('token');
+                        // Get token from auth-storage (Zustand persist storage)
+                        let token: string | null = null;
+                        try {
+                          const authStorage = localStorage.getItem('auth-storage');
+                          if (authStorage) {
+                            const { state } = JSON.parse(authStorage);
+                            token = state?.token || null;
+                          }
+                        } catch (error) {
+                          console.error('Failed to parse auth storage:', error);
+                        }
                         await fetch(`/api/contents/${id}/restore`, {
                           method: 'POST',
                           headers: { Authorization: `Bearer ${token}` },
