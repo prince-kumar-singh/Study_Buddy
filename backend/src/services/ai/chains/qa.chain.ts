@@ -127,7 +127,7 @@ export const askQuestion = async (
 };
 
 /**
- * Ask a question with streaming support using gemini-2.5-flash-live
+ * Ask a question with streaming support using gemini-2.5-flash (native streaming)
  * Returns an async generator that yields tokens as they arrive
  */
 export async function* askQuestionStream(
@@ -140,6 +140,10 @@ export async function* askQuestionStream(
   try {
     // Get retriever for this content
     const retriever = await getVectorStoreRetriever(contentId);
+    
+    if (!retriever) {
+      throw new Error('Failed to initialize vector store retriever for this content.');
+    }
 
     // Create memory for conversation context
     const memory = new BufferMemory({
@@ -157,7 +161,7 @@ export async function* askQuestionStream(
       }
     }
 
-    // Use streaming model (gemini-2.5-flash-live optimized for streaming)
+    // Use streaming model (gemini-2.5-flash has native streaming support)
     const selectedModel = ModelSelector.selectQAModel(true);
     logger.info(`Starting streaming Q&A for content ${contentId} using ${selectedModel}`);
 
@@ -173,9 +177,14 @@ export async function* askQuestionStream(
     // Get relevant documents first
     const docs = await retriever.getRelevantDocuments(question);
     
+    // Check if documents were found
+    if (!docs || docs.length === 0) {
+      throw new Error('No relevant content found for this question. Please ensure the content has been properly processed.');
+    }
+    
     // Extract source segments
     const sourceSegments = docs
-      .filter((doc: any) => doc.metadata)
+      .filter((doc: any) => doc && doc.metadata)
       .map((doc: any, index: number) => ({
         startTime: doc.metadata.startTime || 0,
         endTime: doc.metadata.endTime || 0,
@@ -184,7 +193,15 @@ export async function* askQuestionStream(
       .slice(0, 3);
 
     // Build context from retrieved documents
-    const context = docs.map((doc: any) => doc.pageContent).join('\n\n');
+    const context = docs
+      .filter((doc: any) => doc && doc.pageContent)
+      .map((doc: any) => doc.pageContent)
+      .join('\n\n');
+
+    // Check if we have valid context
+    if (!context || context.trim().length === 0) {
+      throw new Error('No valid content context found. The content may not be properly indexed.');
+    }
 
     // Create prompt for streaming
     const prompt = `You are a helpful AI tutor assistant. Use the following context to answer the student's question accurately and concisely.
@@ -200,13 +217,25 @@ Answer:`;
     let fullAnswer = '';
     
     for await (const chunk of stream) {
-      const token = chunk.content.toString();
-      fullAnswer += token;
+      // Handle different possible chunk structures
+      let token = '';
+      if (chunk && typeof chunk === 'string') {
+        token = chunk;
+      } else if (chunk && chunk.content) {
+        token = chunk.content.toString();
+      } else if (chunk && chunk.text) {
+        token = chunk.text;
+      } else if (chunk && typeof chunk.toString === 'function') {
+        token = chunk.toString();
+      }
       
-      yield {
-        token,
-        done: false,
-      };
+      if (token) {
+        fullAnswer += token;
+        yield {
+          token,
+          done: false,
+        };
+      }
     }
 
     // Log completion
@@ -260,10 +289,21 @@ Generate 3 follow-up questions (one per line):`;
 
     const result = await llm.invoke(prompt);
     
-    const questions = result.content
-      .toString()
+    // Handle different response formats
+    let content = '';
+    if (result && result.content) {
+      content = result.content.toString();
+    } else if (result && typeof result.toString === 'function') {
+      content = result.toString();
+    } else if (typeof result === 'string') {
+      content = result;
+    }
+
+    const questions = content
       .split('\n')
       .filter((q: string) => q.trim().length > 0)
+      .map((q: string) => q.replace(/^\d+\.\s*/, '').trim()) // Remove numbering
+      .filter((q: string) => q.length > 10) // Filter out very short questions
       .slice(0, 3);
 
     return questions;
