@@ -43,20 +43,20 @@ interface CostConfig {
 
 /**
  * Cost estimates for Gemini 2.5 models (October 2025)
- * Updated prices for Gemini 2.5 API
+ * Updated prices for Gemini 2.5 API (Official Google Pricing)
  */
 const MODEL_COSTS: CostConfig = {
   [GEMINI_MODELS.FLASH]: {
-    inputCostPerMillion: 0.075,   // gemini-2.5-flash pricing
+    inputCostPerMillion: 0.075,   // gemini-2.5-flash pricing (streaming support)
     outputCostPerMillion: 0.30,
   },
   [GEMINI_MODELS.FLASH_LITE]: {
     inputCostPerMillion: 0.0375,  // gemini-2.5-flash-lite pricing (cheapest)
     outputCostPerMillion: 0.15,
   },
-  [GEMINI_MODELS.FLASH_LIVE]: {
-    inputCostPerMillion: 0.10,    // gemini-2.5-flash-live pricing (optimized for streaming)
-    outputCostPerMillion: 0.40,
+  [GEMINI_MODELS.PRO]: {
+    inputCostPerMillion: 0.15,    // gemini-2.5-pro pricing (advanced reasoning)
+    outputCostPerMillion: 0.60,
   },
 };
 
@@ -201,7 +201,7 @@ class ModelAnalytics {
     return {
       [GEMINI_MODELS.FLASH]: this.getModelStats(GEMINI_MODELS.FLASH, timeWindowMs),
       [GEMINI_MODELS.FLASH_LITE]: this.getModelStats(GEMINI_MODELS.FLASH_LITE, timeWindowMs),
-      [GEMINI_MODELS.FLASH_LIVE]: this.getModelStats(GEMINI_MODELS.FLASH_LIVE, timeWindowMs),
+      [GEMINI_MODELS.PRO]: this.getModelStats(GEMINI_MODELS.PRO, timeWindowMs),
     };
   }
 
@@ -250,7 +250,7 @@ class ModelAnalytics {
     return {
       [GEMINI_MODELS.FLASH]: stats[GEMINI_MODELS.FLASH].totalCostUSD,
       [GEMINI_MODELS.FLASH_LITE]: stats[GEMINI_MODELS.FLASH_LITE].totalCostUSD,
-      [GEMINI_MODELS.FLASH_LIVE]: stats[GEMINI_MODELS.FLASH_LIVE].totalCostUSD,
+      [GEMINI_MODELS.PRO]: stats[GEMINI_MODELS.PRO].totalCostUSD,
     };
   }
 

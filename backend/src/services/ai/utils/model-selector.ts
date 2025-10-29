@@ -3,16 +3,19 @@ import { logger } from '../../../config/logger';
 /**
  * Gemini Model Policy (Updated October 2025 - Gemini 2.5)
  * 
- * Available models in Gemini 2.5 API:
- * - gemini-2.5-flash: Primary model, fast and balanced (PRIMARY)
+ * Available models in Gemini 2.5 API (Official Google Documentation):
+ * - gemini-2.5-flash: Primary model, fast and balanced, SUPPORTS STREAMING (PRIMARY)
  * - gemini-2.5-flash-lite: Lightweight, quick responses
- * - gemini-2.5-flash-live: Optimized for real-time streaming
+ * - gemini-2.5-pro: Advanced model for complex reasoning (optional)
+ * 
+ * NOTE: There is NO "gemini-2.5-flash-live" model in the official API.
+ * Use gemini-2.5-flash for streaming - it has native streaming support.
  */
 
 export const GEMINI_MODELS = {
-  FLASH: 'gemini-2.5-flash',           // Primary for general tasks
+  FLASH: 'gemini-2.5-flash',           // Primary for general tasks + streaming
   FLASH_LITE: 'gemini-2.5-flash-lite', // Lightweight for simple tasks
-  FLASH_LIVE: 'gemini-2.5-flash-live', // Real-time streaming
+  PRO: 'gemini-2.5-pro',               // Advanced reasoning (optional)
 } as const;
 
 export type GeminiModel = typeof GEMINI_MODELS[keyof typeof GEMINI_MODELS];
@@ -35,8 +38,8 @@ export const MODEL_CHARACTERISTICS = {
     latency: 'low',               // Fast response time
     contextWindow: '1M tokens',   // Large context support
     costEfficiency: 'high',       // Cost-effective
-    streamingOptimized: true,     // Supports streaming
-    bestFor: ['general', 'standard-tasks', 'balanced', 'most-use-cases'],
+    streamingOptimized: true,     // NATIVE STREAMING SUPPORT
+    bestFor: ['general', 'standard-tasks', 'balanced', 'streaming', 'real-time-qa', 'most-use-cases'],
   },
   [GEMINI_MODELS.FLASH_LITE]: {
     latency: 'ultra-low',         // Fastest response
@@ -45,12 +48,12 @@ export const MODEL_CHARACTERISTICS = {
     streamingOptimized: false,    // Not optimized for streaming
     bestFor: ['simple-tasks', 'quick-responses', 'high-load', 'low-cost'],
   },
-  [GEMINI_MODELS.FLASH_LIVE]: {
-    latency: 'low',               // Optimized for real-time
-    contextWindow: '1M tokens',   // Large context
-    costEfficiency: 'high',       // Good cost/performance
-    streamingOptimized: true,     // Built for streaming
-    bestFor: ['streaming', 'real-time', 'live-qa', 'interactive'],
+  [GEMINI_MODELS.PRO]: {
+    latency: 'medium',            // Slower but more capable
+    contextWindow: '2M tokens',   // Extended context
+    costEfficiency: 'low',        // Most expensive
+    streamingOptimized: true,     // Supports streaming
+    bestFor: ['complex-reasoning', 'advanced-tasks', 'code-analysis', 'deep-thinking'],
   },
 } as const;
 
@@ -69,10 +72,11 @@ interface ModelSelectionConfig {
  * Intelligent model selector that routes tasks to appropriate Gemini models
  * 
  * Decision Logic (Updated for Gemini 2.5 Architecture):
- * 1. Streaming/Real-time → gemini-2.5-flash-live (optimized for streaming)
+ * 1. Streaming/Real-time → gemini-2.5-flash (has native streaming support)
  * 2. Simple/Quick tasks → gemini-2.5-flash-lite (fast & lightweight)
  * 3. General/Standard tasks → gemini-2.5-flash (balanced & reliable)
- * 4. Fallback chain: flash-live → flash → flash-lite
+ * 4. Complex reasoning → gemini-2.5-pro (advanced capabilities)
+ * 5. Fallback chain: flash → flash-lite → pro
  */
 export class ModelSelector {
   
@@ -88,10 +92,10 @@ export class ModelSelector {
       requiresDeepReasoning = false,
     } = config;
 
-    // Rule 1: Streaming tasks use flash-live (optimized for real-time)
+    // Rule 1: Streaming tasks use FLASH (has native streaming support)
     if (isStreaming) {
-      logger.info(`Model selected: ${GEMINI_MODELS.FLASH_LIVE} (streaming task: ${taskType})`);
-      return GEMINI_MODELS.FLASH_LIVE;
+      logger.info(`Model selected: ${GEMINI_MODELS.FLASH} (streaming task: ${taskType})`);
+      return GEMINI_MODELS.FLASH;
     }
 
     // Rule 2: Simple tasks use flash-lite (fastest & cheapest)
@@ -167,10 +171,10 @@ export class ModelSelector {
 
   /**
    * Get model for Q&A (optimized for streaming)
-   * Routing: Streaming → flash-live, Non-streaming → flash
+   * Routing: Streaming → flash (native streaming), Non-streaming → flash
    */
   static selectQAModel(isStreaming: boolean = false): GeminiModel {
-    // Streaming Q&A → Use flash-live (optimized for real-time)
+    // Streaming Q&A → Use flash (has native streaming support)
     if (isStreaming) {
       return this.selectModel({
         taskType: 'qa-streaming',
@@ -228,12 +232,12 @@ export class ModelSelector {
    * Returns ordered list of models to try based on task requirements
    */
   static getSmartFallbackChain(taskType: string, complexity: TaskComplexity): GeminiModel[] {
-    // For streaming tasks: flash-live optimized, flash as backup, flash-lite last resort
+    // For streaming tasks: flash is primary (has native streaming), pro as backup, flash-lite last resort
     if (complexity === TaskComplexity.STREAMING) {
       return [
-        GEMINI_MODELS.FLASH_LIVE, // Optimized for streaming
-        GEMINI_MODELS.FLASH,      // Also supports streaming
-        GEMINI_MODELS.FLASH_LITE, // Last resort
+        GEMINI_MODELS.FLASH,      // Native streaming support (PRIMARY)
+        GEMINI_MODELS.PRO,        // Also supports streaming (advanced)
+        GEMINI_MODELS.FLASH_LITE, // Last resort (not optimized for streaming)
       ];
     }
 
@@ -242,14 +246,14 @@ export class ModelSelector {
       return [
         GEMINI_MODELS.FLASH_LITE, // Fastest for simple tasks
         GEMINI_MODELS.FLASH,      // More capable fallback
-        GEMINI_MODELS.FLASH_LIVE, // Alternative
+        GEMINI_MODELS.PRO,        // Advanced alternative if needed
       ];
     }
 
-    // For moderate/complex tasks: flash primary, flash-live as alternative, flash-lite emergency
+    // For moderate/complex tasks: flash primary, pro as alternative, flash-lite emergency
     return [
       GEMINI_MODELS.FLASH,      // Best balance of quality/speed
-      GEMINI_MODELS.FLASH_LIVE, // Real-time capable alternative
+      GEMINI_MODELS.PRO,        // Advanced reasoning if needed
       GEMINI_MODELS.FLASH_LITE, // Emergency fallback
     ];
   }
