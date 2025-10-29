@@ -2,9 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Enhanced CSS Variables for Chat UI */
+:root {
+  --chat-gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --chat-gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --chat-gradient-user: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --chat-gradient-assistant: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
 @layer utilities {
   .perspective-1000 {
     perspective: 1000px;
+  }
+  
+  /* Chat-specific utilities */
+  .chat-gradient-primary {
+    background: var(--chat-gradient-primary);
+  }
+  
+  .chat-gradient-secondary {
+    background: var(--chat-gradient-secondary);
+  }
+  
+  .chat-gradient-user {
+    background: var(--chat-gradient-user);
+  }
+  
+  .chat-gradient-assistant {
+    background: var(--chat-gradient-assistant);
+  }
+  
+  /* Glass morphism effects */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+  }
+  
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  /* Enhanced hover animations with GPU acceleration */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    will-change: transform, box-shadow;
+  }
+  
+  .hover-lift:hover {
+    transform: translate3d(0, -2px, 0);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Chat input effects */
+  .chat-input-focus {
+    transition: all 0.2s ease;
+  }
+  
+  .chat-input-focus:focus-within {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(79, 172, 254, 0.25);
+  }
+  
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  /* Respect user's reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    .hover-lift {
+      transition: none;
+      will-change: auto;
+    }
+    
+    .hover-lift:hover {
+      transform: none;
+    }
+    
+    .chat-input-focus {
+      transition: none;
+    }
+    
+    .chat-input-focus:focus-within {
+      transform: none;
+    }
   }
 }
 
