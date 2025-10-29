@@ -23,10 +23,10 @@ import {
 // Re-export for backward compatibility
 export const VALID_GEMINI_MODELS = GEMINI_MODELS;
 
-// Fallback chain for Gemini 2.5 models with dynamic availability
+// Fallback chain for Gemini 2.5 models (based on official API documentation)
 const MODEL_FALLBACK_CHAIN = [
-  GEMINI_MODELS.FLASH,      // Primary: gemini-2.5-flash
-  GEMINI_MODELS.FLASH_LIVE, // Live streaming: gemini-2.5-flash-live
+  GEMINI_MODELS.FLASH,      // Primary: gemini-2.5-flash (streaming support)
+  GEMINI_MODELS.PRO,        // Advanced: gemini-2.5-pro
   GEMINI_MODELS.FLASH_LITE, // Lightweight: gemini-2.5-flash-lite
 ];
 
@@ -159,8 +159,8 @@ export const executeLangChainWithRetry = async <T>(
     const primaryModel = await getAvailableGeminiModel(taskType);
     fallbackChain = [
       primaryModel, 
-      GEMINI_MODELS.FLASH,      // Primary fallback
-      GEMINI_MODELS.FLASH_LIVE, // Streaming fallback
+      GEMINI_MODELS.FLASH,      // Primary fallback (streaming support)
+      GEMINI_MODELS.PRO,        // Advanced fallback
       GEMINI_MODELS.FLASH_LITE  // Emergency fallback
     ].filter((m, i, arr) => arr.indexOf(m) === i); // Remove duplicates
   }

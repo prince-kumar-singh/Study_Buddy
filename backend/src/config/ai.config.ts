@@ -34,22 +34,24 @@ export enum AITaskType {
 
 /**
  * Current Gemini models (October 2025 - Updated to Gemini 2.5)
- * Using Gemini 2.5 series with dynamic availability switching
+ * Using Gemini 2.5 series based on official Google AI API documentation
  * 
- * Available Models:
- * - gemini-2.5-flash: Primary model for most tasks (fast, balanced)
+ * Available Models (Official):
+ * - gemini-2.5-flash: Primary model for most tasks (fast, balanced, STREAMING SUPPORT)
  * - gemini-2.5-flash-lite: Lightweight model for simple/quick tasks
- * - gemini-2.5-flash-live: Optimized for real-time/streaming tasks
+ * - gemini-2.5-pro: Advanced model for complex reasoning
+ * 
+ * NOTE: "gemini-2.5-flash-live" does NOT exist in the official API.
+ * Use gemini-2.5-flash for streaming - it has native streaming capabilities.
  */
 export const GEMINI_MODELS = {
-  FLASH: 'gemini-2.5-flash',           // Primary: General purpose, balanced
+  FLASH: 'gemini-2.5-flash',           // Primary: General purpose, balanced, streaming
   FLASH_LITE: 'gemini-2.5-flash-lite', // Lightweight: Simple/quick tasks
-  FLASH_LIVE: 'gemini-2.5-flash-live', // Live: Real-time streaming
+  PRO: 'gemini-2.5-pro',               // Advanced: Complex reasoning
   // Legacy aliases for backward compatibility
-  PRO: 'gemini-2.5-flash',             // Alias to FLASH
   FLASH_8B: 'gemini-2.5-flash-lite',   // Alias to FLASH_LITE
   FLASH_LATEST: 'gemini-2.5-flash',    // Alias to FLASH
-  PRO_LATEST: 'gemini-2.5-flash',      // Alias to FLASH
+  PRO_LATEST: 'gemini-2.5-pro',        // Alias to PRO
 } as const;
 
 export type GeminiModelName = typeof GEMINI_MODELS[keyof typeof GEMINI_MODELS];
@@ -117,9 +119,9 @@ export const defaultAIConfig: AIConfig = {
   models: {
     preferred: GEMINI_MODELS.FLASH,
     fallbacks: [
-      GEMINI_MODELS.FLASH,      // Primary: gemini-2.5-flash
+      GEMINI_MODELS.FLASH,      // Primary: gemini-2.5-flash (streaming support)
+      GEMINI_MODELS.PRO,        // Advanced: gemini-2.5-pro
       GEMINI_MODELS.FLASH_LITE, // Lightweight: gemini-2.5-flash-lite
-      GEMINI_MODELS.FLASH_LIVE, // Live streaming: gemini-2.5-flash-live
     ],
   },
   retry: {
@@ -140,39 +142,40 @@ export const defaultAIConfig: AIConfig = {
 
 /**
  * Task-to-model mapping for intelligent selection (Gemini 2.5 models)
+ * NOTE: gemini-2.5-flash has native streaming support, so use it for QA_STREAMING
  */
 const TASK_MODEL_PREFERENCES: Record<AITaskType, { primary: GeminiModelName; fallbacks: GeminiModelName[] }> = {
   [AITaskType.SUMMARY_QUICK]: {
     primary: GEMINI_MODELS.FLASH_LITE,
-    fallbacks: [GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LIVE],
+    fallbacks: [GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH, GEMINI_MODELS.PRO],
   },
   [AITaskType.SUMMARY_BRIEF]: {
     primary: GEMINI_MODELS.FLASH,
-    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH_LIVE],
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
   },
   [AITaskType.SUMMARY_DETAILED]: {
     primary: GEMINI_MODELS.FLASH,
-    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LIVE, GEMINI_MODELS.FLASH_LITE],
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.PRO, GEMINI_MODELS.FLASH_LITE],
   },
   [AITaskType.FLASHCARD_GENERATION]: {
     primary: GEMINI_MODELS.FLASH,
-    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH_LIVE],
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
   },
   [AITaskType.QUIZ_GENERATION]: {
     primary: GEMINI_MODELS.FLASH,
-    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH_LIVE],
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
   },
   [AITaskType.QA_SIMPLE]: {
     primary: GEMINI_MODELS.FLASH_LITE,
-    fallbacks: [GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LIVE],
+    fallbacks: [GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH, GEMINI_MODELS.PRO],
   },
   [AITaskType.QA_COMPLEX]: {
     primary: GEMINI_MODELS.FLASH,
-    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LIVE, GEMINI_MODELS.FLASH_LITE],
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.PRO, GEMINI_MODELS.FLASH_LITE],
   },
   [AITaskType.QA_STREAMING]: {
-    primary: GEMINI_MODELS.FLASH_LIVE,
-    fallbacks: [GEMINI_MODELS.FLASH_LIVE, GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE],
+    primary: GEMINI_MODELS.FLASH, // FLASH has native streaming support
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.PRO, GEMINI_MODELS.FLASH_LITE],
   },
   [AITaskType.EMBEDDING]: {
     primary: GEMINI_MODELS.FLASH,
@@ -180,7 +183,7 @@ const TASK_MODEL_PREFERENCES: Record<AITaskType, { primary: GeminiModelName; fal
   },
   [AITaskType.CONCEPT_EXTRACTION]: {
     primary: GEMINI_MODELS.FLASH,
-    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.FLASH_LIVE],
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
   },
 };
 
