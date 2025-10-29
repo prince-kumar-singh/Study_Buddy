@@ -3,6 +3,7 @@ import { Content } from '../../models/Content.model';
 import { Flashcard } from '../../models/Flashcard.model';
 import { Summary } from '../../models/Summary.model';
 import { QA } from '../../models/QA.model';
+import { ChatSession } from '../../models/ChatSession.model';
 import { Transcript } from '../../models/Transcript.model';
 import { Quiz } from '../../models/Quiz.model';
 import { QuizAttempt } from '../../models/QuizAttempt.model';
@@ -167,6 +168,7 @@ export class ContentDeleteService {
       quizzes: 0,
       quizAttempts: 0,
       qaRecords: 0,
+      chatSessions: 0,
       cloudinaryFiles: 0,
       vectorStoreRecords: 0,
     };
@@ -289,6 +291,13 @@ export class ContentDeleteService {
             { session }
           );
           deletedCounts.qaRecords = qaResult.deletedCount || 0;
+
+          // Delete chat sessions
+          const chatSessionResult = await ChatSession.deleteMany(
+            { contentId: new mongoose.Types.ObjectId(contentId) },
+            { session }
+          );
+          deletedCounts.chatSessions = chatSessionResult.deletedCount || 0;
 
           logger.info(`✓ Phase 2a: Deleted related data for content ${contentId}:`, deletedCounts);
         }
@@ -583,6 +592,7 @@ export class ContentDeleteService {
           quizzes: 0,
           quizAttempts: 0,
           qaRecords: 0,
+          chatSessions: 0,
         };
 
         // Delete related data (cascade)
@@ -627,6 +637,12 @@ export class ContentDeleteService {
           { session }
         );
         deletedCounts.qaRecords = qaResult.deletedCount || 0;
+
+        const chatSessionResult = await ChatSession.deleteMany(
+          { contentId: new mongoose.Types.ObjectId(contentId) },
+          { session }
+        );
+        deletedCounts.chatSessions = chatSessionResult.deletedCount || 0;
 
         // Delete content document
         await Content.deleteOne({ _id: contentId }, { session });
