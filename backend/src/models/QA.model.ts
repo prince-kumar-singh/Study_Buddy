@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IQA extends Document {
   contentId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
+  sessionId: mongoose.Types.ObjectId; // Chat session reference
   question: string;
   answer: string;
   sourceSegments: Array<{
@@ -36,6 +37,12 @@ const QASchema = new Schema<IQA>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true,
+    },
+    sessionId: {
+      type: Schema.Types.ObjectId,
+      ref: 'ChatSession',
+      required: false, // Optional for backward compatibility with existing QA records
       index: true,
     },
     question: {
@@ -77,5 +84,6 @@ const QASchema = new Schema<IQA>(
 
 // Compound indexes
 QASchema.index({ userId: 1, contentId: 1, createdAt: -1 });
+QASchema.index({ sessionId: 1, createdAt: 1 }); // For session-based queries
 
 export const QA = mongoose.model<IQA>('QA', QASchema);
