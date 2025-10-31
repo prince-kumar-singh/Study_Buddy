@@ -73,3 +73,4 @@ DOCUMENTATION/
 *.txt
 tests/
 *.test.tsx
+jest.config.js
