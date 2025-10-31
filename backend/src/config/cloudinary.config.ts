@@ -127,6 +127,148 @@ export const deleteFromCloudinary = async (
 };
 
 /**
+ * Enhanced delete function with retry mechanism and better error handling
+ * @param publicId - Cloudinary public ID
+ * @param resourceType - Type of resource
+ * @param options - Delete options
+ */
+export const deleteFromCloudinaryWithRetry = async (
+  publicId: string,
+  resourceType: 'raw' | 'image' | 'video' = 'raw',
+  options: {
+    retries?: number;
+    throwOnError?: boolean;
+    logErrors?: boolean;
+  } = {}
+): Promise<{ success: boolean; error?: string; deleted?: boolean }> => {
+  const { retries = 3, throwOnError = false, logErrors = true } = options;
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const result = await cloudinary.uploader.destroy(publicId, { 
+        resource_type: resourceType 
+      });
+      
+      const deleted = result.result === 'ok';
+      
+      if (logErrors || deleted) {
+        logger.info(`Cloudinary file ${deleted ? 'deleted' : 'not found'}: ${publicId} (attempt ${attempt})`);
+      }
+      
+      return { 
+        success: true, 
+        deleted: deleted 
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (attempt === retries) {
+        if (logErrors) {
+          logger.error(`Cloudinary deletion failed after ${retries} attempts: ${publicId}`, error);
+        }
+        
+        if (throwOnError) {
+          throw new Error(`Failed to delete file from Cloudinary after ${retries} attempts: ${errorMessage}`);
+        }
+        
+        return { 
+          success: false, 
+          error: errorMessage,
+          deleted: false 
+        };
+      }
+      
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+    }
+  }
+  
+  return { success: false, error: 'Unexpected error', deleted: false };
+};
+
+/**
+ * Mark file for soft deletion in Cloudinary by adding tags
+ * @param publicId - Cloudinary public ID
+ * @param resourceType - Type of resource
+ * @param userId - User ID for tracking
+ */
+export const markForSoftDeletion = async (
+  publicId: string,
+  resourceType: 'raw' | 'image' | 'video' = 'raw',
+  userId: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const tags = [
+      'soft-deleted',
+      `deleted-${new Date().toISOString().split('T')[0]}`,
+      `user-${userId}`
+    ];
+    
+    for (const tag of tags) {
+      await cloudinary.uploader.add_tag(tag, [publicId], {
+        resource_type: resourceType
+      });
+    }
+    
+    logger.info(`Cloudinary file marked for soft deletion: ${publicId}`);
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to mark Cloudinary file for soft deletion: ${publicId}`, error);
+    return { success: false, error: errorMessage };
+  }
+};
+
+/**
+ * Bulk delete multiple files from Cloudinary
+ * @param publicIds - Array of public IDs
+ * @param resourceType - Type of resource
+ */
+export const bulkDeleteFromCloudinary = async (
+  publicIds: string[],
+  resourceType: 'raw' | 'image' | 'video' = 'raw'
+): Promise<{
+  success: boolean;
+  results: Array<{ publicId: string; success: boolean; error?: string; deleted?: boolean }>;
+  totalDeleted: number;
+  totalFailed: number;
+}> => {
+  const results: Array<{ publicId: string; success: boolean; error?: string; deleted?: boolean }> = [];
+  let totalDeleted = 0;
+  let totalFailed = 0;
+
+  for (const publicId of publicIds) {
+    const result = await deleteFromCloudinaryWithRetry(publicId, resourceType, {
+      retries: 2,
+      throwOnError: false,
+      logErrors: true
+    });
+
+    results.push({
+      publicId,
+      success: result.success,
+      error: result.error,
+      deleted: result.deleted
+    });
+
+    if (result.success && result.deleted) {
+      totalDeleted++;
+    } else {
+      totalFailed++;
+    }
+  }
+
+  logger.info(`Bulk Cloudinary deletion completed: ${totalDeleted} deleted, ${totalFailed} failed`);
+
+  return {
+    success: totalDeleted > 0,
+    results,
+    totalDeleted,
+    totalFailed
+  };
+};
+
+/**
  * Get file URL from Cloudinary
  * @param publicId - Cloudinary public ID
  * @param resourceType - Type of resource
