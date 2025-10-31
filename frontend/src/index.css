@@ -87,14 +87,109 @@
     background: rgba(0, 0, 0, 0.3);
   }
 
+  /* Professional sidebar animations */
+  .sidebar-slide-enter {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sidebar-slide-enter-active {
+    transform: translateX(0);
+  }
+  
+  .sidebar-slide-exit {
+    transform: translateX(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sidebar-slide-exit-active {
+    transform: translateX(-100%);
+  }
+  
+  /* Enhanced focus states for accessibility */
+  .focus-visible:focus-visible {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  
+  /* Smooth sidebar transitions */
+  .sidebar-transition {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.3s ease,
+                opacity 0.3s ease;
+    will-change: transform;
+  }
+  
+  /* Mobile overlay backdrop */
+  .sidebar-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: backdrop-filter 0.3s ease,
+                opacity 0.3s ease;
+  }
+  
+  /* Performance optimizations */
+  .sidebar-optimized {
+    contain: layout style paint;
+    transform: translateZ(0);
+  }
+  
+  /* Session item hover states */
+  .session-item {
+    transition: background-color 0.15s ease,
+                transform 0.15s ease,
+                box-shadow 0.15s ease;
+    will-change: background-color, transform, box-shadow;
+  }
+  
+  .session-item:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .session-item.active {
+    background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+    color: white;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
+  }
+  
+  /* Dropdown animations */
+  .dropdown-enter {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  
+  .dropdown-enter-active {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  
+  /* Button press animations */
+  .btn-press {
+    transition: transform 0.1s ease;
+  }
+  
+  .btn-press:active {
+    transform: scale(0.95);
+  }
+  
   /* Respect user's reduced motion preference */
   @media (prefers-reduced-motion: reduce) {
-    .hover-lift {
+    .hover-lift,
+    .sidebar-transition,
+    .session-item,
+    .dropdown-enter,
+    .btn-press {
       transition: none;
       will-change: auto;
     }
     
-    .hover-lift:hover {
+    .hover-lift:hover,
+    .session-item:hover,
+    .btn-press:active {
       transform: none;
     }
     
@@ -104,6 +199,11 @@
     
     .chat-input-focus:focus-within {
       transform: none;
+    }
+    
+    .sidebar-overlay {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
   }
 }

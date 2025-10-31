@@ -11,6 +11,7 @@ import QuizList from './pages/QuizList'
 import TakeQuiz from './pages/Quiz'
 import Homepage from './pages/Homepage'
 import QA from './pages/QA'
+import Settings from './pages/Settings'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -51,6 +52,10 @@ function App() {
       <Route
         path="/qa/:contentId"
         element={isAuthenticated ? <QA /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/settings"
+        element={isAuthenticated ? <Settings /> : <Navigate to="/login" />}
       />
     </Routes>
   )
