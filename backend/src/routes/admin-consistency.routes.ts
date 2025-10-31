@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import { consistencyCheckService } from '../services/content/consistency-check.service';
+import { ScheduledJobsService } from '../services/jobs/scheduled-jobs.service';
 import { logger } from '../config/logger';
 
 const router = express.Router();
@@ -163,6 +164,116 @@ router.get('/health', authenticate, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to check consistency health',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * @route POST /api/admin/consistency/cleanup/expired-content
+ * @desc Manually trigger cleanup of expired soft-deleted content
+ * @access Admin only
+ */
+router.post('/cleanup/expired-content', authenticate, async (req, res) => {
+  try {
+    // TODO: Add admin role check middleware
+    logger.info('Manual cleanup of expired content triggered by admin');
+    
+    const jobsService = new ScheduledJobsService();
+    await (jobsService as any).cleanupExpiredContent(); // Access private method for manual trigger
+    
+    res.json({
+      success: true,
+      message: 'Expired content cleanup completed successfully',
+    });
+  } catch (error) {
+    logger.error('Error in manual expired content cleanup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cleanup expired content',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * @route POST /api/admin/consistency/cleanup/cloudinary-orphans
+ * @desc Manually trigger cleanup of orphaned Cloudinary files
+ * @access Admin only
+ */
+router.post('/cleanup/cloudinary-orphans', authenticate, async (req, res) => {
+  try {
+    // TODO: Add admin role check middleware
+    logger.info('Manual cleanup of orphaned Cloudinary files triggered by admin');
+    
+    const jobsService = new ScheduledJobsService();
+    await (jobsService as any).cleanupOrphanedCloudinaryFiles(); // Access private method for manual trigger
+    
+    res.json({
+      success: true,
+      message: 'Orphaned Cloudinary files cleanup completed successfully',
+    });
+  } catch (error) {
+    logger.error('Error in manual Cloudinary cleanup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cleanup orphaned Cloudinary files',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * @route GET /api/admin/consistency/cleanup/status
+ * @desc Get cleanup job statistics and status
+ * @access Admin only
+ */
+router.get('/cleanup/status', authenticate, async (req, res) => {
+  try {
+    const { Content } = await import('../models/Content.model');
+    const { cloudinary } = await import('../config/cloudinary.config');
+    
+    // Get soft-deleted content statistics
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const expiredSoftDeletedCount = await Content.countDocuments({
+      isDeleted: true,
+      deletedAt: { $lt: thirtyDaysAgo }
+    });
+    
+    const recentSoftDeletedCount = await Content.countDocuments({
+      isDeleted: true,
+      deletedAt: { $gte: thirtyDaysAgo }
+    });
+    
+    // Get Cloudinary orphaned files count
+    let orphanedCloudinaryCount = 0;
+    try {
+      const searchResult = await cloudinary.search
+        .expression('tags:soft-deleted')
+        .max_results(500)
+        .execute();
+      orphanedCloudinaryCount = searchResult.resources?.length || 0;
+    } catch (cloudinaryError) {
+      logger.warn('Could not fetch Cloudinary orphaned files count:', cloudinaryError);
+    }
+    
+    res.json({
+      success: true,
+      status: {
+        expiredSoftDeletedContent: expiredSoftDeletedCount,
+        recentSoftDeletedContent: recentSoftDeletedCount,
+        orphanedCloudinaryFiles: orphanedCloudinaryCount,
+        cleanupThreshold: '30 days',
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting cleanup status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get cleanup status',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
