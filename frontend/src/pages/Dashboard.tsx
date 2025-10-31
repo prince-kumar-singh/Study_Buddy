@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ContentDeleteButton } from '../components/DeleteComponents'
 import { ProcessingStatusCompact } from '../components/ProcessingStatus'
-import { Trash2, Play, AlertCircle } from 'lucide-react'
+import { Trash2, Play, AlertCircle, Settings, Upload, LogOut } from 'lucide-react'
 import { contentService } from '../services/content.service'
 import { useState } from 'react'
 
@@ -44,25 +44,38 @@ const Dashboard = () => {
             <h1 className="text-2xl font-bold text-blue-600">Study Buddy</h1>
             <p className="text-sm text-gray-600">Welcome back, {user?.name}!</p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-2 md:gap-4">
             <Link
               to="/deleted-items"
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition flex items-center"
+              className="bg-gray-100 text-gray-700 px-3 md:px-4 py-2 rounded-lg hover:bg-gray-200 transition flex items-center text-sm md:text-base"
+              title="View deleted items"
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Deleted Items
+              <span className="hidden sm:inline">Deleted Items</span>
+            </Link>
+            <Link
+              to="/settings"
+              className="bg-gray-100 text-gray-700 px-3 md:px-4 py-2 rounded-lg hover:bg-gray-200 transition flex items-center text-sm md:text-base"
+              title="Account settings and preferences"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Settings</span>
             </Link>
             <Link
               to="/upload"
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+              className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center text-sm md:text-base"
+              title="Upload new content"
             >
-              Upload Content
+              <Upload className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Upload</span>
             </Link>
             <button
               onClick={() => logout()}
-              className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+              className="bg-red-100 text-red-700 px-3 md:px-4 py-2 rounded-lg hover:bg-red-200 transition flex items-center text-sm md:text-base"
+              title="Sign out of your account"
             >
-              Logout
+              <LogOut className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>

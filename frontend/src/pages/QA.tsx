@@ -10,14 +10,15 @@ import {
   Crown,
   AlertCircle,
   Menu,
-  X
+  X,
+  Settings
 } from 'lucide-react'
 import { qaService, QAHistory } from '../services/qa.service'
 import { contentService, Content } from '../services/content.service'
 import { chatSessionService, ChatSession } from '../services/chat-session.service'
 import { ChatMessage } from '../components/ChatMessage'
 import { ChatInput } from '../components/ChatInput'
-import { ChatSessionSidebarEnhanced } from '../components/ChatSessionSidebarEnhanced'
+import { ChatSessionSidebar } from '../components/ChatSessionSidebar'
 import { authService } from '../services/auth.service'
 
 interface Message {
@@ -53,7 +54,7 @@ const QA = () => {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [isLoadingSessions, setIsLoadingSessions] = useState(true)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024)
 
   // Fetch content info
   useEffect(() => {
@@ -201,6 +202,54 @@ const QA = () => {
       return () => clearTimeout(timer)
     }
   }, [cooldown])
+
+  // Handle responsive sidebar behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const isLargeScreen = window.innerWidth >= 1024
+      // On large screens, ensure sidebar is visible
+      // On small screens, keep current state but close after navigation
+      if (isLargeScreen && !isSidebarOpen) {
+        setIsSidebarOpen(true)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    
+    // Initial check
+    handleResize()
+    
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [isSidebarOpen])
+
+  // Keyboard shortcuts and custom events
+  useEffect(() => {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      // Ctrl+B or Cmd+B to toggle sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault()
+        setIsSidebarOpen(prev => !prev)
+      }
+      // Escape to close sidebar on mobile
+      if (e.key === 'Escape' && window.innerWidth < 1024 && isSidebarOpen) {
+        setIsSidebarOpen(false)
+      }
+    }
+
+    const handleCloseSidebar = () => {
+      setIsSidebarOpen(false)
+    }
+
+    document.addEventListener('keydown', handleKeyboard)
+    window.addEventListener('closeSidebar', handleCloseSidebar)
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyboard)
+      window.removeEventListener('closeSidebar', handleCloseSidebar)
+    }
+  }, [isSidebarOpen])
 
   // Session handlers
   const handleNewSession = async () => {
@@ -583,7 +632,7 @@ Session Analytics:
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+          className="sidebar-overlay fixed inset-0 bg-black/60 z-40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -597,16 +646,24 @@ Session Analytics:
       )}
 
       {/* Chat Session Sidebar */}
-      <div className={`
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        fixed lg:static top-0 left-0 h-full z-50 lg:z-auto
-        transition-transform duration-300 ease-in-out
-        ${isSidebarOpen ? 'lg:block' : 'hidden lg:block'}
-      `}>
-        <ChatSessionSidebarEnhanced
+      <aside 
+        className={`
+          sidebar-transition sidebar-optimized
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0
+          fixed lg:static top-0 left-0 h-full z-50 lg:z-auto
+          w-80 lg:w-80 xl:w-96
+          bg-white shadow-xl lg:shadow-sm 
+          overflow-hidden
+        `}
+        role="complementary"
+        aria-label="Chat sessions navigation"
+        aria-hidden={!isSidebarOpen}
+      >
+        <ChatSessionSidebar
           sessions={sessions}
           currentSessionId={currentSessionId}
-          onSessionSelect={(sessionId) => {
+          onSessionSelect={(sessionId: string) => {
             handleSessionSelect(sessionId)
             // Auto-close sidebar on mobile after selection
             if (window.innerWidth < 1024) {
@@ -626,12 +683,18 @@ Session Analytics:
           onShareSession={handleShareSession}
           onExportSession={handleExportSession}
           onViewAnalytics={handleViewAnalytics}
+          onCloseSidebar={() => setIsSidebarOpen(false)}
           isLoading={isLoadingSessions}
+          isMobile={window.innerWidth < 1024}
+          currentUser={userInfo}
         />
-      </div>
+      </aside>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-0">
+      <div className={`
+        flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out
+        ${isSidebarOpen ? 'lg:ml-0' : 'lg:ml-0'}
+      `}>
       {/* Enhanced Header */}
       <header className="bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-10">
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-5">
@@ -640,12 +703,24 @@ Session Analytics:
               {/* Enhanced Sidebar Toggle */}
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 sm:p-3 text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 rounded-xl transition-all duration-200 hover-lift focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+                className={`
+                  p-2 sm:p-3 rounded-xl transition-all duration-200 
+                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                  ${isSidebarOpen 
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }
+                  transform hover:scale-105 active:scale-95
+                `}
+                title={isSidebarOpen ? 'Hide sidebar (Ctrl+B)' : 'Show sidebar (Ctrl+B)'}
                 aria-label={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
                 aria-expanded={isSidebarOpen}
               >
-                {isSidebarOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {isSidebarOpen ? (
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                ) : (
+                  <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+                )}
               </button>
 
               <Link
@@ -699,6 +774,15 @@ Session Analytics:
                   Upgrade
                 </Link>
               )}
+
+              <Link
+                to="/settings"
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                title="Account settings"
+                aria-label="Account settings"
+              >
+                <Settings className="w-5 h-5" />
+              </Link>
               
               <button
                 onClick={handleExportChat}
