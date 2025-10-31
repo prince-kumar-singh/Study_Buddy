@@ -47,6 +47,12 @@ export class ScheduledJobsService {
     });
     this.jobs.push(cleanupJob);
 
+    // Cleanup orphaned Cloudinary files weekly on Sunday at 3:00 AM
+    const cloudinaryCleanupJob = cron.schedule('0 3 * * 0', async () => {
+      await this.cleanupOrphanedCloudinaryFiles();
+    });
+    this.jobs.push(cloudinaryCleanupJob);
+
     logger.info(`Started ${this.jobs.length} scheduled jobs`);
   }
 
@@ -293,6 +299,100 @@ export class ScheduledJobsService {
 
     } catch (error) {
       logger.error('Error in cleanup job:', error);
+    }
+  }
+
+  /**
+   * Cleanup orphaned Cloudinary files
+   * Deletes files tagged as 'soft-deleted' that are older than 30 days
+   */
+  private async cleanupOrphanedCloudinaryFiles(): Promise<void> {
+    try {
+      logger.info('Running cleanup job for orphaned Cloudinary files...');
+
+      const { cloudinary } = await import('../../config/cloudinary.config');
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const cutoffDate = thirtyDaysAgo.toISOString().split('T')[0];
+
+      // Search for files with soft-deleted tag older than 30 days
+      const searchResult = await cloudinary.search
+        .expression('tags:soft-deleted')
+        .max_results(100) // Process max 100 at a time
+        .execute();
+
+      if (!searchResult.resources || searchResult.resources.length === 0) {
+        logger.info('No orphaned Cloudinary files found');
+        return;
+      }
+
+      let deletedCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+
+      for (const resource of searchResult.resources) {
+        try {
+          // Check if file has a deletion date tag and if it's old enough
+          const deletionDateTag = resource.tags?.find((tag: string) => tag.startsWith('deleted-'));
+          
+          if (deletionDateTag) {
+            const deletionDate = deletionDateTag.replace('deleted-', '');
+            
+            // If deletion date is older than cutoff, delete the file
+            if (deletionDate < cutoffDate) {
+              const { deleteFromCloudinaryWithRetry } = await import('../../config/cloudinary.config');
+              const result = await deleteFromCloudinaryWithRetry(
+                resource.public_id,
+                resource.resource_type as 'raw' | 'image' | 'video',
+                {
+                  retries: 3,
+                  throwOnError: false,
+                  logErrors: true
+                }
+              );
+
+              if (result.success && result.deleted) {
+                deletedCount++;
+                logger.info(`Cleaned up orphaned Cloudinary file: ${resource.public_id}`);
+              } else {
+                failedCount++;
+                logger.warn(`Failed to cleanup orphaned Cloudinary file: ${resource.public_id} - ${result.error}`);
+              }
+            } else {
+              skippedCount++;
+              logger.debug(`Skipping recent soft-deleted file: ${resource.public_id} (deleted: ${deletionDate})`);
+            }
+          } else {
+            // File is tagged as soft-deleted but has no date - clean it up anyway
+            const { deleteFromCloudinaryWithRetry } = await import('../../config/cloudinary.config');
+            const result = await deleteFromCloudinaryWithRetry(
+              resource.public_id,
+              resource.resource_type as 'raw' | 'image' | 'video',
+              {
+                retries: 3,
+                throwOnError: false,
+                logErrors: true
+              }
+            );
+
+            if (result.success && result.deleted) {
+              deletedCount++;
+              logger.info(`Cleaned up undated orphaned Cloudinary file: ${resource.public_id}`);
+            } else {
+              failedCount++;
+              logger.warn(`Failed to cleanup undated orphaned Cloudinary file: ${resource.public_id} - ${result.error}`);
+            }
+          }
+        } catch (error) {
+          failedCount++;
+          logger.error(`Error processing orphaned Cloudinary file ${resource.public_id}:`, error);
+        }
+      }
+
+      logger.info(`Cloudinary cleanup job completed: ${deletedCount} deleted, ${skippedCount} skipped (too recent), ${failedCount} failed`);
+
+    } catch (error) {
+      logger.error('Error in Cloudinary cleanup job:', error);
     }
   }
 
