@@ -60,11 +60,12 @@ export interface BulkDeleteResult {
 export class ContentDeleteService {
   /**
    * Soft delete content (30-day recovery window)
+   * Marks content as deleted in MongoDB and tags Cloudinary files for cleanup
    */
   async softDeleteContent(
     contentId: string,
     userId: string
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; cloudinaryMarked?: boolean }> {
     try {
       const content = await Content.findOne({
         _id: contentId,
@@ -76,15 +77,38 @@ export class ContentDeleteService {
         return { success: false, message: 'Content not found' };
       }
 
+      // Mark Cloudinary file for soft deletion if it exists
+      let cloudinaryMarked = false;
+      if (content.cloudinaryPublicId) {
+        try {
+          const { markForSoftDeletion } = await import('../../config/cloudinary.config');
+          const result = await markForSoftDeletion(
+            content.cloudinaryPublicId,
+            'raw', // Assuming documents are stored as raw files
+            userId
+          );
+          cloudinaryMarked = result.success;
+          
+          if (!result.success) {
+            logger.warn(`Failed to mark Cloudinary file for soft deletion: ${content.cloudinaryPublicId}`, result.error);
+          }
+        } catch (cloudinaryError) {
+          logger.warn(`Error marking Cloudinary file for soft deletion:`, cloudinaryError);
+          // Don't fail the entire operation for Cloudinary errors
+        }
+      }
+
+      // Mark content as soft deleted in MongoDB
       content.isDeleted = true;
       content.deletedAt = new Date();
       await content.save();
 
-      logger.info(`Content soft deleted: ${contentId} by user ${userId}`);
+      logger.info(`Content soft deleted: ${contentId} by user ${userId}${cloudinaryMarked ? ' (Cloudinary file marked)' : ''}`);
 
       return {
         success: true,
         message: 'Content deleted successfully. You can recover it within 30 days.',
+        cloudinaryMarked
       };
     } catch (error) {
       logger.error(`Error soft deleting content ${contentId}:`, error);
@@ -94,11 +118,12 @@ export class ContentDeleteService {
 
   /**
    * Restore soft-deleted content
+   * Restores content in MongoDB and removes soft-deletion tags from Cloudinary
    */
   async restoreContent(
     contentId: string,
     userId: string
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; cloudinaryRestored?: boolean }> {
     try {
       const content = await Content.findOne({
         _id: contentId,
@@ -122,15 +147,49 @@ export class ContentDeleteService {
         };
       }
 
+      // Remove soft deletion tags from Cloudinary file if it exists
+      let cloudinaryRestored = false;
+      if (content.cloudinaryPublicId) {
+        try {
+          const { cloudinary } = await import('../../config/cloudinary.config');
+          
+          // Remove soft-deletion tags
+          const tagsToRemove = [
+            'soft-deleted',
+            `deleted-${content.deletedAt?.toISOString().split('T')[0]}`,
+            `user-${userId}`
+          ];
+          
+          for (const tag of tagsToRemove) {
+            try {
+              await cloudinary.uploader.remove_tag(tag, [content.cloudinaryPublicId], {
+                resource_type: 'raw'
+              });
+            } catch (tagError) {
+              // Individual tag removal failure is not critical
+              logger.debug(`Could not remove tag ${tag} from ${content.cloudinaryPublicId}:`, tagError);
+            }
+          }
+          
+          cloudinaryRestored = true;
+          logger.info(`Cloudinary soft-deletion tags removed for: ${content.cloudinaryPublicId}`);
+        } catch (cloudinaryError) {
+          logger.warn(`Error removing Cloudinary soft-deletion tags:`, cloudinaryError);
+          // Don't fail the entire restoration for Cloudinary errors
+        }
+      }
+
+      // Restore content in MongoDB
       content.isDeleted = false;
       content.deletedAt = undefined;
       await content.save();
 
-      logger.info(`Content restored: ${contentId} by user ${userId}`);
+      logger.info(`Content restored: ${contentId} by user ${userId}${cloudinaryRestored ? ' (Cloudinary tags removed)' : ''}`);
 
       return {
         success: true,
         message: 'Content restored successfully',
+        cloudinaryRestored
       };
     } catch (error) {
       logger.error(`Error restoring content ${contentId}:`, error);
@@ -213,12 +272,20 @@ export class ContentDeleteService {
       // Delete from Cloudinary if applicable
       if (deleteFromCloudinary && cloudinaryPublicId) {
         try {
-          await cloudinary.uploader.destroy(cloudinaryPublicId, {
-            resource_type: 'raw',
+          const { deleteFromCloudinaryWithRetry } = await import('../../config/cloudinary.config');
+          const result = await deleteFromCloudinaryWithRetry(cloudinaryPublicId, 'raw', {
+            retries: 3,
+            throwOnError: false,
+            logErrors: true
           });
-          cloudinaryDeleted = true;
-          deletedCounts.cloudinaryFiles = 1;
-          logger.info(`✓ Phase 1b: Deleted Cloudinary file: ${cloudinaryPublicId}`);
+          
+          if (result.success) {
+            cloudinaryDeleted = result.deleted || false;
+            deletedCounts.cloudinaryFiles = result.deleted ? 1 : 0;
+            logger.info(`✓ Phase 1b: Cloudinary file ${result.deleted ? 'deleted' : 'not found'}: ${cloudinaryPublicId}`);
+          } else {
+            logger.warn(`⚠ Phase 1b: Failed to delete Cloudinary file (non-critical): ${result.error}`);
+          }
         } catch (cloudinaryError) {
           logger.warn(`⚠ Phase 1b: Failed to delete Cloudinary file (non-critical):`, cloudinaryError);
           // Cloudinary failure is non-critical - file may not exist or may be cleaned up later
@@ -564,12 +631,22 @@ export class ContentDeleteService {
       // PHASE 1b: Cloudinary deletion (NON-CRITICAL)
       if (cloudinaryPublicId) {
         try {
-          await cloudinary.uploader.destroy(cloudinaryPublicId, {
-            resource_type: 'raw',
+          const { deleteFromCloudinaryWithRetry } = await import('../../config/cloudinary.config');
+          const result = await deleteFromCloudinaryWithRetry(cloudinaryPublicId, 'raw', {
+            retries: 2,
+            throwOnError: false,
+            logErrors: true
           });
-          phases.cloudinary.success = true;
-          phases.cloudinary.deleted = true;
-          logger.info(`[PhaseTracking] ✓ Cloudinary deletion succeeded for ${contentId}`);
+          
+          phases.cloudinary.success = result.success;
+          phases.cloudinary.deleted = result.deleted;
+          phases.cloudinary.error = result.error;
+          
+          if (result.success) {
+            logger.info(`[PhaseTracking] ✓ Cloudinary deletion ${result.deleted ? 'succeeded' : 'completed (file not found)'} for ${contentId}`);
+          } else {
+            logger.warn(`[PhaseTracking] ⚠ Cloudinary deletion failed for ${contentId} (non-critical): ${result.error}`);
+          }
         } catch (cloudinaryError) {
           phases.cloudinary.success = false;
           phases.cloudinary.error = cloudinaryError instanceof Error ? cloudinaryError.message : String(cloudinaryError);
@@ -578,6 +655,7 @@ export class ContentDeleteService {
         }
       } else {
         phases.cloudinary.success = true; // No Cloudinary file to delete
+        phases.cloudinary.deleted = false;
       }
 
       // PHASE 2: MongoDB deletion with transaction
