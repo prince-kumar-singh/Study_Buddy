@@ -197,7 +197,8 @@ export class ContentDeleteService {
       try {
         await deleteContentFromVectorStore(contentId, { 
           retries: 3, 
-          throwOnError: true 
+          throwOnError: true,
+          userId: userId // Add userId for additional security
         });
         vectorStoreDeleted = true;
         deletedCounts.vectorStoreRecords = 1;
@@ -546,7 +547,8 @@ export class ContentDeleteService {
       try {
         await deleteContentFromVectorStore(contentId, { 
           retries: 3, 
-          throwOnError: true 
+          throwOnError: true,
+          userId: userId // Add userId for additional security
         });
         phases.pinecone.success = true;
         phases.pinecone.deleted = true;

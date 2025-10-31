@@ -109,9 +109,9 @@ export const addDocumentsToVectorStore = async (
  */
 export const deleteContentFromVectorStore = async (
   contentId: string, 
-  options: { retries?: number; throwOnError?: boolean } = {}
+  options: { retries?: number; throwOnError?: boolean; userId?: string } = {}
 ): Promise<void> => {
-  const { retries = 3, throwOnError = true } = options;
+  const { retries = 3, throwOnError = true, userId } = options;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -126,13 +126,20 @@ export const deleteContentFromVectorStore = async (
       const indexName = process.env.PINECONE_INDEX_NAME || 'study-buddy-transcripts';
       const index = pineconeClient.Index(indexName);
 
-      // Use Pinecone's deleteMany() with metadata filter
-      // deleteMany accepts either an array of IDs or a filter object
-      await index.namespace('').deleteMany({
+      // Build metadata filter - include userId for additional security if provided
+      const filter: Record<string, any> = {
         contentId: { $eq: contentId },
-      });
+      };
 
-      logger.info(`Deleted vectors for content ${contentId} from vector store (attempt ${attempt}/${retries})`);
+      // Add userId filter for additional security (prevents deleting vectors from other users)
+      if (userId) {
+        filter.userId = { $eq: userId };
+      }
+
+      // Use Pinecone's deleteMany() with metadata filter
+      await index.namespace('').deleteMany(filter);
+
+      logger.info(`Deleted vectors for content ${contentId} from vector store (attempt ${attempt}/${retries})${userId ? ` for user ${userId}` : ''}`);
       return; // Success
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -151,6 +158,59 @@ export const deleteContentFromVectorStore = async (
   if (throwOnError && lastError) {
     throw lastError;
   }
+};
+
+/**
+ * Delete ALL vectors for a specific user (used during account deletion)
+ * This is a critical operation that removes all vector embeddings for a user
+ */
+export const deleteAllUserVectorsFromVectorStore = async (
+  userId: string,
+  options: { retries?: number; throwOnError?: boolean } = {}
+): Promise<{ deletedCount?: number; error?: string }> => {
+  const { retries = 3, throwOnError = true } = options;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (!pineconeClient) {
+        const error = new Error('Pinecone client not initialized');
+        logger.error(error.message);
+        if (throwOnError) throw error;
+        return { error: 'Pinecone client not initialized' };
+      }
+
+      const indexName = process.env.PINECONE_INDEX_NAME || 'study-buddy-transcripts';
+      const index = pineconeClient.Index(indexName);
+
+      // Delete all vectors for this user
+      await index.namespace('').deleteMany({
+        userId: { $eq: userId },
+      });
+
+      logger.info(`Deleted all vectors for user ${userId} from vector store (attempt ${attempt}/${retries})`);
+      return { deletedCount: -1 }; // Pinecone doesn't return exact count
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.warn(`Failed to delete all vectors for user ${userId} (attempt ${attempt}/${retries}):`, error);
+      
+      if (attempt < retries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // All retries failed
+  const errorMessage = `Failed to delete all vectors for user ${userId} after ${retries} attempts: ${lastError?.message}`;
+  logger.error(errorMessage, lastError);
+  
+  if (throwOnError && lastError) {
+    throw lastError;
+  }
+  
+  return { error: errorMessage };
 };
 
 

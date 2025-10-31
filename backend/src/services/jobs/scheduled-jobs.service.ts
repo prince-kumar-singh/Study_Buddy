@@ -41,6 +41,12 @@ export class ScheduledJobsService {
     });
     this.jobs.push(quotaCheckJob);
 
+    // Cleanup expired soft-deleted content daily at 2:00 AM
+    const cleanupJob = cron.schedule('0 2 * * *', async () => {
+      await this.cleanupExpiredContent();
+    });
+    this.jobs.push(cleanupJob);
+
     logger.info(`Started ${this.jobs.length} scheduled jobs`);
   }
 
@@ -225,10 +231,83 @@ export class ScheduledJobsService {
   }
 
   /**
+   * Cleanup expired soft-deleted content (after 30 days)
+   * Permanently deletes content that was soft-deleted more than 30 days ago
+   */
+  private async cleanupExpiredContent(): Promise<void> {
+    try {
+      logger.info('Running cleanup job for expired soft-deleted content...');
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      // Find soft-deleted content older than 30 days
+      const expiredContents: IContent[] = await Content.find({
+        isDeleted: true,
+        deletedAt: { $lt: thirtyDaysAgo }
+      }).limit(50); // Process max 50 at a time
+
+      if (expiredContents.length === 0) {
+        logger.info('No expired soft-deleted content found');
+        return;
+      }
+
+      logger.info(`Found ${expiredContents.length} expired content(s) to permanently delete`);
+
+      // Import the content deletion service
+      const { contentDeleteService } = await import('../content/delete.service');
+
+      let deletedCount = 0;
+      let failedCount = 0;
+
+      for (const content of expiredContents) {
+        try {
+          const contentId = (content._id as any).toString();
+          const userId = content.userId.toString();
+
+          // Permanently delete the content and all related data
+          const result = await contentDeleteService.permanentlyDeleteContent(
+            contentId,
+            userId,
+            {
+              deleteRelatedData: true,
+              deleteFromCloudinary: true
+            }
+          );
+
+          if (result.success) {
+            deletedCount++;
+            logger.info(`Successfully cleaned up expired content ${contentId}`);
+          } else {
+            failedCount++;
+            logger.error(`Failed to cleanup expired content ${contentId}: ${result.message}`);
+          }
+
+        } catch (error) {
+          failedCount++;
+          logger.error(`Error cleaning up expired content ${content._id}:`, error);
+        }
+      }
+
+      logger.info(`Cleanup job completed: ${deletedCount} deleted, ${failedCount} failed`);
+
+    } catch (error) {
+      logger.error('Error in cleanup job:', error);
+    }
+  }
+
+  /**
    * Manually trigger auto-resume job (for testing)
    */
   async triggerAutoResume(): Promise<void> {
     await this.autoResumePausedContent();
+  }
+
+  /**
+   * Manually trigger cleanup job (for testing)
+   */
+  async triggerCleanup(): Promise<void> {
+    await this.cleanupExpiredContent();
   }
 
   /**
