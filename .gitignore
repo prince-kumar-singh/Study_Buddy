@@ -72,3 +72,4 @@ DOCUMENTATION/
 .qodo/
 *.txt
 tests/
+*.test.tsx
