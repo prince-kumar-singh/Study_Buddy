@@ -37,6 +37,7 @@ export default function TakeQuiz() {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSubmitConfirmation, setShowSubmitConfirmation] = useState(false);
 
   // Timer
   useEffect(() => {
@@ -87,7 +88,7 @@ export default function TakeQuiz() {
 
   const handleMultipleChoiceChange = (option: string) => {
     const currentQuestion = quiz?.questions[currentQuestionIndex];
-    if (currentQuestion?.type === 'mcq') {
+    if (currentQuestion?.type === 'mcq' || currentQuestion?.type === 'truefalse') {
       setCurrentAnswer(option);
     }
   };
@@ -131,11 +132,14 @@ export default function TakeQuiz() {
     // Save current answer
     saveCurrentAnswer();
 
-    // Confirm submission
-    if (!window.confirm(`Are you sure you want to submit? You have answered ${answers.size} out of ${quiz.questions.length} questions.`)) {
-      return;
-    }
+    // Show confirmation modal
+    setShowSubmitConfirmation(true);
+  };
 
+  const confirmSubmit = async () => {
+    if (!attempt || !quiz) return;
+
+    setShowSubmitConfirmation(false);
     setIsSubmitting(true);
     
     try {
@@ -479,6 +483,222 @@ export default function TakeQuiz() {
           {answers.size} of {quiz.questions.length} questions answered
         </div>
       </div>
+
+      {/* Enhanced Submit Confirmation Modal */}
+      {showSubmitConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all">
+            <div className="p-6">
+              {/* Header */}
+              <div className="text-center mb-6">
+                {(() => {
+                  const completionPercentage = (answers.size / quiz.questions.length) * 100;
+                  if (completionPercentage < 25) {
+                    return (
+                      <>
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <XCircle className="w-8 h-8 text-red-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          Submit Incomplete Quiz?
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          You've only answered {Math.round(completionPercentage)}% of questions. This may significantly impact your score.
+                        </p>
+                      </>
+                    );
+                  } else if (completionPercentage < 50) {
+                    return (
+                      <>
+                        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Target className="w-8 h-8 text-amber-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          Submit Partially Complete Quiz?
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          You've answered {Math.round(completionPercentage)}% of questions. Consider completing more for a better score.
+                        </p>
+                      </>
+                    );
+                  } else if (completionPercentage < 100) {
+                    return (
+                      <>
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Send className="w-8 h-8 text-blue-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          Submit Quiz?
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          You've answered {Math.round(completionPercentage)}% of questions. Review your progress below.
+                        </p>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <>
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <CheckCircle className="w-8 h-8 text-green-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          Submit Complete Quiz?
+                        </h3>
+                        <p className="text-gray-600 text-sm">
+                          Excellent! You've answered all questions. Ready to see your results?
+                        </p>
+                      </>
+                    );
+                  }
+                })()}
+              </div>
+
+              {/* Progress Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-700">Progress</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {answers.size} / {quiz.questions.length}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      (answers.size / quiz.questions.length) < 0.5 
+                        ? 'bg-red-500' 
+                        : (answers.size / quiz.questions.length) < 0.8 
+                        ? 'bg-amber-500' 
+                        : 'bg-green-500'
+                    }`}
+                    style={{ width: `${(answers.size / quiz.questions.length) * 100}%` }}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="font-semibold text-green-600">{answers.size}</div>
+                    <div className="text-gray-500">Answered</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-amber-600">{quiz.questions.length - answers.size}</div>
+                    <div className="text-gray-500">Remaining</div>
+                  </div>
+                </div>
+
+                {/* Completion Status Messages */}
+                {(() => {
+                  const completionPercentage = (answers.size / quiz.questions.length) * 100;
+                  if (completionPercentage < 25) {
+                    return (
+                      <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                        <div className="flex items-center text-red-700">
+                          <XCircle className="w-4 h-4 mr-2" />
+                          <span className="text-xs font-medium">
+                            Very few questions answered. Consider completing more for a better score.
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  } else if (completionPercentage < 50) {
+                    return (
+                      <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <div className="flex items-center text-amber-700">
+                          <Target className="w-4 h-4 mr-2" />
+                          <span className="text-xs font-medium">
+                            Less than half completed. You might want to answer more questions.
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  } else if (completionPercentage < 100) {
+                    return (
+                      <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center text-blue-700">
+                          <Target className="w-4 h-4 mr-2" />
+                          <span className="text-xs font-medium">
+                            {quiz.questions.length - answers.size} questions remaining
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center text-green-700">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          <span className="text-xs font-medium">
+                            All questions answered! Ready to submit.
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+
+              {/* Time Spent */}
+              <div className="flex items-center justify-center mb-6 text-sm text-gray-600">
+                <Clock className="w-4 h-4 mr-2" />
+                <span>Time spent: {formatTime(totalElapsedTime)}</span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSubmitConfirmation(false)}
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Continue Quiz
+                </button>
+                <button
+                  onClick={confirmSubmit}
+                  className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  Submit Now
+                </button>
+              </div>
+
+              {/* Warning Message */}
+              {(() => {
+                const unanswered = quiz.questions.length - answers.size;
+                const completionPercentage = (answers.size / quiz.questions.length) * 100;
+                
+                if (unanswered > 0) {
+                  if (completionPercentage < 25) {
+                    return (
+                      <div className="mt-4 text-center">
+                        <p className="text-xs text-red-600 font-medium">
+                          ⚠️ {unanswered} unanswered questions will be marked incorrect
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          This will significantly impact your final score
+                        </p>
+                      </div>
+                    );
+                  } else if (completionPercentage < 75) {
+                    return (
+                      <div className="mt-4 text-center">
+                        <p className="text-xs text-amber-600 font-medium">
+                          ⚠️ {unanswered} unanswered questions will be marked incorrect
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="mt-4 text-center">
+                        <p className="text-xs text-gray-500">
+                          {unanswered} unanswered question{unanswered !== 1 ? 's' : ''} will be marked incorrect
+                        </p>
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
