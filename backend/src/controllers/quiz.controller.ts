@@ -93,7 +93,7 @@ export const getQuiz = async (
 
 /**
  * Get quizzes by content ID
- * GET /api/quiz/content/:contentId
+ * GET /api/quiz/content/:contentId?includeInactive=true
  */
 export const getQuizzesByContent = async (
   req: Request,
@@ -102,9 +102,14 @@ export const getQuizzesByContent = async (
 ): Promise<void> => {
   try {
     const { contentId } = req.params;
+    const { includeInactive = 'true' } = req.query;
     const userId = (req as any).user.id;
 
-    const quizzes = await QuizService.getQuizzesByContent(contentId, userId);
+    const quizzes = await QuizService.getQuizzesByContent(
+      contentId, 
+      userId,
+      includeInactive === 'true'
+    );
 
     res.json({
       success: true,
@@ -112,6 +117,46 @@ export const getQuizzesByContent = async (
     });
   } catch (error: any) {
     logger.error('Error in getQuizzesByContent controller:', error);
+    next(error);
+  }
+};
+
+/**
+ * Get quiz version history for specific difficulty
+ * GET /api/quiz/content/:contentId/versions/:difficulty
+ */
+export const getQuizVersions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { contentId, difficulty } = req.params;
+    const userId = (req as any).user.id;
+
+    // Validate difficulty
+    if (!['beginner', 'intermediate', 'advanced'].includes(difficulty)) {
+      res.status(400).json({
+        success: false,
+        error: {
+          message: 'Invalid difficulty level. Must be beginner, intermediate, or advanced',
+        },
+      });
+      return;
+    }
+
+    const quizzes = await QuizService.getQuizVersions(
+      contentId,
+      userId,
+      difficulty as 'beginner' | 'intermediate' | 'advanced'
+    );
+
+    res.json({
+      success: true,
+      data: quizzes,
+    });
+  } catch (error: any) {
+    logger.error('Error in getQuizVersions controller:', error);
     next(error);
   }
 };
