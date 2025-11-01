@@ -86,11 +86,11 @@ export const generateQuiz = async (
     let questionCount = count || calculateQuestionCount(durationMs);
 
     // Apply safety cap based on difficulty to prevent truncation
-    // Advanced questions are longer, so we need to limit them more
+    // CRITICAL: Very strict limits to ensure JSON completes without mid-string cutoff
     const maxQuestionsByDifficulty = {
       beginner: 30,
-      intermediate: 20,
-      advanced: 12, // Reduced from 30 to prevent truncation
+      intermediate: 10, // Reduced from 15 to ensure completion
+      advanced: 5,      // Reduced from 8 - advanced questions are very token-intensive
     };
     
     questionCount = Math.min(questionCount, maxQuestionsByDifficulty[difficulty]);
@@ -101,20 +101,24 @@ export const generateQuiz = async (
     const selectedModel = ModelSelector.selectQuizModel(difficulty, transcript.length);
 
     // Calculate dynamic token limit based on question count and difficulty
-    // Advanced questions need more tokens (avg ~400 tokens per question)
-    // Intermediate: ~250 tokens, Beginner: ~150 tokens
-    const tokensPerQuestion = difficulty === 'advanced' ? 500 : difficulty === 'intermediate' ? 300 : 200;
+    // CRITICAL: Advanced uses Pro model (32K limit), Intermediate/Beginner use Flash (8K limit)
+    // Increased limits for advanced now that we're using Pro model
+    const tokensPerQuestion = difficulty === 'advanced' ? 1200 : difficulty === 'intermediate' ? 400 : 250;
     const estimatedTokens = Math.min(
-      questionCount * tokensPerQuestion + 1000, // +1000 for metadata
-      30000 // Cap at 30k to avoid hitting model limits
+      questionCount * tokensPerQuestion + 2000, // +2000 for metadata and safety margin
+      difficulty === 'advanced' ? 10000 : 6000 // Advanced can use more with Pro model (32K limit)
     );
 
     logger.info(`Using ${estimatedTokens} max tokens for ${questionCount} ${difficulty} questions`);
 
+    // Add timestamp-based randomness to ensure unique questions each time
+    const randomSeed = Date.now() + Math.random();
+    const variationPrompt = `Generate UNIQUE questions different from previous versions. Use seed: ${randomSeed}`;
+
     const llm = await createLLM(
       AITaskType.QUIZ_GENERATION,
       {
-        temperature: 0.6, // Moderate temperature for varied but consistent questions
+        temperature: 0.8, // Increased temperature for more variety between versions
         maxOutputTokens: estimatedTokens,
         modelName: selectedModel,
       }
@@ -133,6 +137,7 @@ export const generateQuiz = async (
       transcript: transcript.substring(0, 10000), // Increased limit for better context
       count: questionCount,
       difficulty,
+      variation: variationPrompt, // Add variation instruction
       format_instructions: quizParser.getFormatInstructions(),
     }, {
       taskType: `quiz_generation_${difficulty}`,
@@ -235,7 +240,7 @@ export const generateQuiz = async (
       options: q.options,
       correctAnswer: q.correctAnswer,
       explanation: q.explanation,
-      difficulty: q.difficulty || difficulty,
+      difficulty: difficulty, // FORCE the requested difficulty, don't trust LLM output
       sourceSegment: {
         startTime: q.sourceSegment.startTime,
         endTime: q.sourceSegment.endTime,
@@ -243,6 +248,15 @@ export const generateQuiz = async (
       points: q.points || (q.type === 'essay' ? 20 : 10),
       tags: q.tags || [],
     }));
+
+    // Validate that all questions match the requested difficulty
+    const incorrectDifficulty = questions.filter(q => q.difficulty !== difficulty);
+    if (incorrectDifficulty.length > 0) {
+      logger.warn(
+        `Fixed ${incorrectDifficulty.length} questions with incorrect difficulty. ` +
+        `All questions now set to ${difficulty}`
+      );
+    }
 
     // Calculate estimated duration (2 minutes per question on average)
     const estimatedDuration = Math.ceil(questions.length * 2);
