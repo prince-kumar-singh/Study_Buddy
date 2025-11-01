@@ -26,6 +26,12 @@ router.get('/:quizId', quizController.getQuiz);
 router.get('/content/:contentId', quizController.getQuizzesByContent);
 
 /**
+ * Get quiz version history for specific difficulty
+ * GET /api/quiz/content/:contentId/versions/:difficulty
+ */
+router.get('/content/:contentId/versions/:difficulty', quizController.getQuizVersions);
+
+/**
  * Start quiz attempt
  * POST /api/quiz/:quizId/start
  */
