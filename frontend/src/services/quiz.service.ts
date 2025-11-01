@@ -27,9 +27,23 @@ export const quizService = {
   /**
    * Get quizzes for a specific content
    */
-  getQuizzesByContent: async (contentId: string): Promise<Quiz[]> => {
+  getQuizzesByContent: async (contentId: string, includeInactive: boolean = true): Promise<Quiz[]> => {
     const response = await apiClient.get<ApiResponse<Quiz[]>>(
-      `/quizzes/content/${contentId}`
+      `/quizzes/content/${contentId}`,
+      { params: { includeInactive } }
+    );
+    return response.data!;
+  },
+
+  /**
+   * Get quiz version history for a specific difficulty
+   */
+  getQuizVersions: async (
+    contentId: string,
+    difficulty: 'beginner' | 'intermediate' | 'advanced'
+  ): Promise<Quiz[]> => {
+    const response = await apiClient.get<ApiResponse<Quiz[]>>(
+      `/quizzes/content/${contentId}/versions/${difficulty}`
     );
     return response.data!;
   },

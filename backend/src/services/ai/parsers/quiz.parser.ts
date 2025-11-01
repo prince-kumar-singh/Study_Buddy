@@ -5,9 +5,10 @@ import { logger } from '../../../config/logger';
 /**
  * Zod schema for quiz question validation
  * Note: Accepts both sourceTimestamp (LLM output) and sourceSegment (DB schema)
+ * Max length increased to 2000 chars to accommodate advanced essay questions
  */
 export const quizQuestionSchema = z.object({
-  question: z.string().min(10).max(500).describe('The quiz question text'),
+  question: z.string().min(10).max(2000).describe('The quiz question text'),
   type: z.enum(['mcq', 'truefalse', 'fillin', 'essay']).describe('Question type'),
   options: z
     .array(z.string())

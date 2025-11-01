@@ -11,6 +11,10 @@ You are an expert educational content creator. Generate a beginner-level quiz fr
 TRANSCRIPT:
 {transcript}
 
+VARIATION REQUIREMENT:
+{variation}
+IMPORTANT: Generate COMPLETELY NEW and DIFFERENT questions from any previous versions. Focus on different concepts, use different wording, and create unique scenarios.
+
 REQUIREMENTS:
 - Generate EXACTLY {count} questions suitable for beginners
 - Focus on fundamental concepts and basic understanding
@@ -20,6 +24,7 @@ REQUIREMENTS:
 - Provide clear explanations for correct answers
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds from the transcript
 - Keep questions under 150 words, explanations under 100 words
+- CRITICAL: Difficulty must be "beginner" (not "intermediate" or "advanced")
 
 OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON (absolutely NO markdown code fences like \`\`\`json or \`\`\`)
@@ -63,15 +68,22 @@ You are an expert educational content creator. Generate an intermediate-level qu
 TRANSCRIPT:
 {transcript}
 
+VARIATION REQUIREMENT:
+{variation}
+IMPORTANT: Generate COMPLETELY NEW and DIFFERENT questions from any previous versions. Focus on different concepts, use different wording, and create unique scenarios.
+
 REQUIREMENTS:
 - Generate EXACTLY {count} questions for intermediate learners
 - Test application of concepts and understanding of relationships
 - Use moderate complexity in language and concepts
 - Include multiple choice, fill-in-the-blank, and short essay questions
 - Each question should require deeper thinking than basic recall
+- **CRITICAL CHARACTER LIMITS**: Question text MAX 1200 characters (~200 words), explanations MAX 800 characters
+- **CRITICAL**: Keep questions concise and focused to stay within limits
 - Provide detailed explanations that expand on the concepts
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds from the transcript
 - Keep questions under 200 words, explanations under 150 words
+- CRITICAL: Difficulty must be "intermediate" (not "beginner" or "advanced")
 
 OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON (absolutely NO markdown code fences like \`\`\`json or \`\`\`)
@@ -115,6 +127,10 @@ You are an expert educational content creator. Generate an advanced-level quiz f
 TRANSCRIPT:
 {transcript}
 
+VARIATION REQUIREMENT:
+{variation}
+IMPORTANT: Generate COMPLETELY NEW and DIFFERENT questions from any previous versions. Focus on different concepts, use different wording, and create unique scenarios.
+
 REQUIREMENTS:
 - Generate EXACTLY {count} questions for advanced learners
 - Test synthesis, analysis, and evaluation of concepts
@@ -123,7 +139,9 @@ REQUIREMENTS:
 - Each question should require deep understanding and critical thinking
 - Provide comprehensive explanations with connections to broader concepts
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds from the transcript
-- CRITICAL: Keep question text under 300 words, explanations under 200 words to ensure completion
+- **CRITICAL CHARACTER LIMITS**: Question text MAX 1500 characters (~250 words), explanations MAX 1000 characters, correctAnswer MAX 1500 characters
+- **CRITICAL**: Keep questions concise and focused to stay within limits
+- CRITICAL: Difficulty must be "advanced" (not "beginner" or "intermediate")
 
 OUTPUT FORMAT - CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON (absolutely NO markdown code fences like \`\`\`json or \`\`\`)
@@ -215,6 +233,10 @@ TRANSCRIPT:
 
 DIFFICULTY LEVEL: {difficulty}
 
+VARIATION REQUIREMENT:
+{variation}
+IMPORTANT: Generate COMPLETELY NEW and DIFFERENT questions from any previous versions. Focus on different concepts, use different wording, and create unique scenarios.
+
 REQUIREMENTS:
 - Generate {count} questions at {difficulty} level
 - Include varied question types: MCQ, true/false, fill-in-blank, essay
@@ -222,6 +244,7 @@ REQUIREMENTS:
 - Provide explanations for learning
 - IMPORTANT: Each question MUST include a "sourceSegment" object with "startTime" and "endTime" in milliseconds
 - Assign appropriate point values (10 points for simple, 20 for complex)
+- CRITICAL: Difficulty field in each question MUST match {difficulty} exactly
 
 OUTPUT FORMAT:
 Return ONLY valid JSON (no markdown, no code fences) with this structure:
