@@ -184,12 +184,22 @@ export class QuizService {
   /**
    * Get quiz by ID
    */
-  static async getQuizById(quizId: string, userId: string): Promise<IQuiz> {
-    const quiz = await Quiz.findOne({
+  static async getQuizById(
+    quizId: string, 
+    userId: string, 
+    requireActive: boolean = false // Allow fetching inactive quizzes by default
+  ): Promise<IQuiz> {
+    const query: any = {
       _id: quizId,
       userId,
-      isActive: true,
-    });
+    };
+    
+    // Only filter by isActive if explicitly required
+    if (requireActive) {
+      query.isActive = true;
+    }
+    
+    const quiz = await Quiz.findOne(query);
 
     if (!quiz) {
       throw new Error('Quiz not found');
@@ -199,17 +209,46 @@ export class QuizService {
   }
 
   /**
-   * Get quizzes for content
+   * Get quizzes for content (including all versions)
    */
   static async getQuizzesByContent(
     contentId: string,
-    userId: string
+    userId: string,
+    includeInactive: boolean = true // Changed default to true to show all versions
+  ): Promise<IQuiz[]> {
+    const query: any = {
+      contentId,
+      userId,
+    };
+    
+    // Only filter by isActive if explicitly requested
+    if (!includeInactive) {
+      query.isActive = true;
+    }
+    
+    // Sort by difficulty first, then by version descending (newest first)
+    const quizzes = await Quiz.find(query).sort({ 
+      difficulty: 1, // beginner, intermediate, advanced
+      version: -1,   // newest version first
+      createdAt: -1 
+    });
+
+    return quizzes;
+  }
+
+  /**
+   * Get quiz version history for a specific difficulty
+   */
+  static async getQuizVersions(
+    contentId: string,
+    userId: string,
+    difficulty: 'beginner' | 'intermediate' | 'advanced'
   ): Promise<IQuiz[]> {
     const quizzes = await Quiz.find({
       contentId,
       userId,
-      isActive: true,
-    }).sort({ createdAt: -1 });
+      difficulty,
+    }).sort({ version: -1, createdAt: -1 });
 
     return quizzes;
   }
