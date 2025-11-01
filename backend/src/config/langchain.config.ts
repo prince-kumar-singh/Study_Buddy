@@ -80,23 +80,24 @@ export const createLLM = async (
       maxOutputTokens: options?.maxOutputTokens ?? langchainConfig.llm.maxOutputTokens,
       topK: options?.topK ?? langchainConfig.llm.topK,
       topP: options?.topP ?? langchainConfig.llm.topP,
-      // Add safety settings to prevent blocking
+      // Safety settings optimized for educational content
+      // Using BLOCK_NONE to prevent false positives on legitimate educational material
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
       ],
     });
@@ -109,23 +110,23 @@ export const createLLM = async (
       model: GEMINI_MODELS.FLASH, // Use stable fallback
       temperature: options?.temperature ?? langchainConfig.llm.temperature,
       maxOutputTokens: options?.maxOutputTokens ?? langchainConfig.llm.maxOutputTokens,
-      // Add safety settings to fallback as well
+      // Safety settings optimized for educational content (fallback)
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
         {
           category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          threshold: HarmBlockThreshold.BLOCK_NONE,
         },
       ],
     });
@@ -221,6 +222,25 @@ export const executeLangChainWithRetry = async <T>(
           maxOutputTokens: options?.maxOutputTokens ?? langchainConfig.llm.maxOutputTokens,
           topK: langchainConfig.llm.topK,
           topP: langchainConfig.llm.topP,
+          // Safety settings for educational content
+          safetySettings: [
+            {
+              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+              threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+              threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+              threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+            {
+              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+              threshold: HarmBlockThreshold.BLOCK_NONE,
+            },
+          ],
         });
         
         // Execute operation with LangChain LLM
