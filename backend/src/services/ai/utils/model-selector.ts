@@ -146,7 +146,9 @@ export class ModelSelector {
 
   /**
    * Get model for quiz generation based on difficulty
-   * Routing: Beginner → flash-lite, Intermediate/Advanced → flash
+   * Routing: Beginner → flash-lite, Intermediate → flash, Advanced → PRO (needs higher token limit)
+   * CRITICAL: Advanced quizzes generate very long essay questions that exceed Flash's 8K token limit
+   * Using Pro (32K limit) to prevent JSON truncation errors
    */
   static selectQuizModel(
     difficulty: 'beginner' | 'intermediate' | 'advanced',
@@ -161,10 +163,17 @@ export class ModelSelector {
       });
     }
 
-    // Intermediate and advanced → Use flash for quality
+    // Advanced → MUST use PRO to handle long essay questions without truncation
+    // Flash has 8K output limit which causes "Unterminated string in JSON" errors
+    if (difficulty === 'advanced') {
+      logger.info(`Model selected: ${GEMINI_MODELS.PRO} (advanced quiz requires 32K token limit)`);
+      return GEMINI_MODELS.PRO;
+    }
+
+    // Intermediate → Use flash for balance (but may need Pro if truncation persists)
     return this.selectModel({
       taskType: `quiz-${difficulty}`,
-      complexity: difficulty === 'advanced' ? TaskComplexity.COMPLEX : TaskComplexity.MODERATE,
+      complexity: TaskComplexity.MODERATE,
       contentLength: transcriptLength,
     });
   }
