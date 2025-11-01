@@ -11,8 +11,16 @@ import {
   ArrowLeft,
   BookOpen,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
+
+// Group quizzes by difficulty and get the latest version
+interface QuizGroup {
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  quizzes: Quiz[];
+  selectedVersion: Quiz;
+}
 
 export default function QuizList() {
   const { contentId } = useParams<{ contentId: string }>();
@@ -20,16 +28,23 @@ export default function QuizList() {
 
   const [content, setContent] = useState<Content | null>(null);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [quizGroups, setQuizGroups] = useState<QuizGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [autoChecking, setAutoChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, [contentId]);
+
+  useEffect(() => {
+    // Group quizzes by difficulty whenever quizzes change
+    groupQuizzes();
+  }, [quizzes]);
 
   const loadData = async () => {
     if (!contentId) return;
@@ -38,7 +53,7 @@ export default function QuizList() {
       setLoading(true);
       const [contentData, quizzesData] = await Promise.all([
         contentService.getContentById(contentId),
-        quizService.getQuizzesByContent(contentId)
+        quizService.getQuizzesByContent(contentId, true) // Include all versions
       ]);
       setContent(contentData.data.content);
       setQuizzes(quizzesData);
@@ -52,6 +67,50 @@ export default function QuizList() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const groupQuizzes = () => {
+    // Group quizzes by difficulty
+    const groups = new Map<string, Quiz[]>();
+    
+    quizzes.forEach(quiz => {
+      const key = quiz.difficulty;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(quiz);
+    });
+
+    // Create quiz groups with the latest version selected by default
+    const quizGroupsArray: QuizGroup[] = [];
+    ['beginner', 'intermediate', 'advanced'].forEach(difficulty => {
+      const difficultyQuizzes = groups.get(difficulty) || [];
+      if (difficultyQuizzes.length > 0) {
+        // Sort by version (descending) to get the latest version first
+        difficultyQuizzes.sort((a, b) => (b.version || 0) - (a.version || 0));
+        quizGroupsArray.push({
+          difficulty: difficulty as 'beginner' | 'intermediate' | 'advanced',
+          quizzes: difficultyQuizzes,
+          selectedVersion: difficultyQuizzes[0], // Latest version
+        });
+      }
+    });
+
+    setQuizGroups(quizGroupsArray);
+  };
+
+  const selectQuizVersion = (difficulty: string, quiz: Quiz) => {
+    setQuizGroups(prev => 
+      prev.map(group => 
+        group.difficulty === difficulty 
+          ? { ...group, selectedVersion: quiz }
+          : group
+      )
+    );
+  };
+
+  const toggleGroupExpansion = (difficulty: string) => {
+    setExpandedGroup(prev => prev === difficulty ? null : difficulty);
   };
 
   const handleAutoGenerate = async () => {
@@ -84,6 +143,9 @@ export default function QuizList() {
       setError(null);
       const newQuiz = await quizService.generateQuiz(contentId, selectedDifficulty);
       
+      // Add the new quiz to the list
+      setQuizzes(prevQuizzes => [newQuiz, ...prevQuizzes]);
+      
       // Navigate directly to the new quiz
       navigate(`/quiz/${newQuiz._id}`);
     } catch (err: any) {
@@ -102,10 +164,8 @@ export default function QuizList() {
       
       const newQuiz = await quizService.regenerateQuiz(quizId);
       
-      // Update the quizzes list
-      setQuizzes(prevQuizzes => 
-        prevQuizzes.map(q => q._id === quizId ? newQuiz : q)
-      );
+      // Add the new version to the quizzes list
+      setQuizzes(prevQuizzes => [newQuiz, ...prevQuizzes]);
       
       // Navigate to the new quiz
       navigate(`/quiz/${newQuiz._id}`);
@@ -239,10 +299,10 @@ export default function QuizList() {
         {/* Existing Quizzes */}
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Available Quizzes ({quizzes.length})
+            Available Quizzes ({quizGroups.length > 0 ? quizGroups.reduce((sum, g) => sum + g.quizzes.length, 0) : 0})
           </h2>
 
-          {quizzes.length === 0 ? (
+          {quizGroups.length === 0 ? (
             <div className="bg-white rounded-lg shadow-md p-12 text-center">
               <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -269,62 +329,127 @@ export default function QuizList() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {quizzes.map((quiz) => (
-                <div
-                  key={quiz._id}
-                  className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow relative"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">
-                        {quiz.title}
-                      </h3>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getDifficultyColor(quiz.difficulty)}`}>
-                          {quiz.difficulty}
-                        </span>
-                        {quiz.version && quiz.version > 1 && (
-                          <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                            v{quiz.version}
+              {quizGroups.map((group) => {
+                const quiz = group.selectedVersion;
+                const hasMultipleVersions = group.quizzes.length > 1;
+                
+                return (
+                  <div
+                    key={`${group.difficulty}-${quiz._id}`}
+                    className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow relative"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">
+                          {quiz.title}
+                        </h3>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getDifficultyColor(quiz.difficulty)}`}>
+                            {quiz.difficulty}
                           </span>
+                          {quiz.version && quiz.version > 1 && (
+                            <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                              v{quiz.version}
+                            </span>
+                          )}
+                          {!quiz.isActive && (
+                            <span className="inline-block px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                              Archived
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Version Selector */}
+                        {hasMultipleVersions && (
+                          <div className="mt-3 mb-2">
+                            <button
+                              onClick={() => toggleGroupExpansion(group.difficulty)}
+                              className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium text-gray-700 transition"
+                            >
+                              <span>{group.quizzes.length} versions available</span>
+                              <ChevronDown 
+                                className={`w-4 h-4 transition-transform ${
+                                  expandedGroup === group.difficulty ? 'transform rotate-180' : ''
+                                }`} 
+                              />
+                            </button>
+                            
+                            {expandedGroup === group.difficulty && (
+                              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                                {group.quizzes.map((versionQuiz) => (
+                                  <button
+                                    key={versionQuiz._id}
+                                    onClick={() => selectQuizVersion(group.difficulty, versionQuiz)}
+                                    className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                                      versionQuiz._id === quiz._id
+                                        ? 'bg-purple-100 text-purple-800 font-semibold'
+                                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span>Version {versionQuiz.version || 1}</span>
+                                      <span className="text-xs opacity-75">
+                                        {formatDate(versionQuiz.createdAt)}
+                                      </span>
+                                    </div>
+                                    {versionQuiz.isActive && (
+                                      <span className="text-xs text-purple-600">Latest</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      <span>{quiz.questions.length} Questions</span>
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        <span>{quiz.questions.length} Questions</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="w-4 h-4 mr-2" />
+                        <span>Created {formatDate(quiz.createdAt)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="w-4 h-4 mr-2" />
-                      <span>Created {formatDate(quiz.createdAt)}</span>
-                    </div>
-                  </div>
 
-                  <div className="flex gap-2">
-                    <Link
-                      to={`/quiz/${quiz._id}`}
-                      className="flex-1 px-4 py-2 bg-purple-600 text-white text-center rounded-lg hover:bg-purple-700 transition font-semibold"
-                    >
-                      Start Quiz
-                    </Link>
-                    <button
-                      onClick={(e) => handleRegenerateQuiz(quiz._id, e)}
-                      disabled={regenerating === quiz._id}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Regenerate quiz with new questions"
-                    >
-                      {regenerating === quiz._id ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700"></div>
-                      ) : (
-                        <RefreshCw className="w-5 h-5" />
-                      )}
-                    </button>
+                    {/* Warning for archived quizzes */}
+                    {!quiz.isActive && (
+                      <div className="mb-4 flex items-start gap-2 text-sm text-amber-600 bg-amber-50 rounded-lg p-3">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>This is an archived version. Consider using the latest version for updated content.</span>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Link
+                        to={`/quiz/${quiz._id}`}
+                        className={`flex-1 px-4 py-2 text-white text-center rounded-lg transition font-semibold ${
+                          quiz.isActive 
+                            ? 'bg-purple-600 hover:bg-purple-700' 
+                            : 'bg-gray-500 hover:bg-gray-600'
+                        }`}
+                      >
+                        {quiz.isActive ? 'Start Quiz' : 'Start Archived Quiz'}
+                      </Link>
+                      <button
+                        onClick={(e) => handleRegenerateQuiz(quiz._id, e)}
+                        disabled={regenerating === quiz._id}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Regenerate quiz with new questions"
+                      >
+                        {regenerating === quiz._id ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-700"></div>
+                        ) : (
+                          <RefreshCw className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
