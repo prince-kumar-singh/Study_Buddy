@@ -1,0 +1,16 @@
+export enum AITaskType {
+  SUMMARY_QUICK = 'summary_quick',
+  SUMMARY_BRIEF = 'summary_brief',
+  SUMMARY_DETAILED = 'summary_detailed',
+  FLASHCARD_GENERATION = 'flashcard_generation',
+  QUIZ_GENERATION = 'quiz_generation',
+  QA_SIMPLE = 'qa_simple',
+  QA_COMPLEX = 'qa_complex',
+  QA_STREAMING = 'qa_streaming',
+  EMBEDDING = 'embedding',
+  CONCEPT_EXTRACTION = 'concept_extraction',
+  SEMANTIC_METADATA = 'semantic_metadata',
+  CONTENT_QUALITY = 'content_quality',
+  ENTITY_EXTRACTION = 'entity_extraction',
+  DIFFICULTY_ANALYSIS = 'difficulty_analysis',
+}

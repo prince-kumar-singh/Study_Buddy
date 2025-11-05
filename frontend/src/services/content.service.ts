@@ -45,10 +45,6 @@ interface ProcessingStage {
 }
 
 export const contentService = {
-  async uploadYouTube(url: string, title: string): Promise<any> {
-    return apiClient.post('/contents/upload-youtube', { url, title })
-  },
-
   async uploadDocument(file: File): Promise<any> {
     const formData = new FormData()
     formData.append('document', file)
@@ -57,6 +53,19 @@ export const contentService = {
         'Content-Type': 'multipart/form-data',
       },
     })
+  },
+
+  async uploadTranscript(data: {
+    text: string
+    title?: string
+    description?: string
+    tags?: string
+    url?: string
+    author?: string
+    duration?: string
+    language?: string
+  }): Promise<any> {
+    return apiClient.post('/contents/upload-transcript', data)
   },
 
   async getContents(filters?: { status?: string; type?: string }): Promise<{ success: boolean; data: { contents: Content[] } }> {

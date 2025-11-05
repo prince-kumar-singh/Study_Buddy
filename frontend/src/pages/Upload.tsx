@@ -2,60 +2,32 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { contentService } from '../services/content.service'
 
-type UploadType = 'youtube' | 'document'
+type UploadType = 'youtube-transcript' | 'document'
 
 export default function Upload() {
   const navigate = useNavigate()
-  const [uploadType, setUploadType] = useState<UploadType>('youtube')
+  const [uploadType, setUploadType] = useState<UploadType>('youtube-transcript')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // YouTube upload state
-  const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [youtubeTitle, setYoutubeTitle] = useState('')
-  const [youtubeDescription, setYoutubeDescription] = useState('')
-  const [youtubeTags, setYoutubeTags] = useState('')
+  // Removed legacy YouTube URL upload state
+
+  // YouTube Transcript upload state
+  const [transcriptText, setTranscriptText] = useState('')
+  const [transcriptTitle, setTranscriptTitle] = useState('')
+  const [transcriptDescription, setTranscriptDescription] = useState('')
+  const [transcriptTags, setTranscriptTags] = useState('')
+  const [transcriptUrl, setTranscriptUrl] = useState('')
+  const [transcriptAuthor, setTranscriptAuthor] = useState('')
+  const [transcriptDuration, setTranscriptDuration] = useState('')
+  const [transcriptLanguage, setTranscriptLanguage] = useState('en')
 
   // Document upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
 
-  const handleYouTubeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(null)
-    setLoading(true)
-
-    try {
-      // Validate YouTube URL
-      if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
-        throw new Error('Please enter a valid YouTube URL')
-      }
-
-      await contentService.uploadYouTube(
-        youtubeUrl,
-        youtubeTitle || 'Untitled YouTube Video'
-      )
-
-      setSuccess('YouTube video uploaded successfully! Processing has started.')
-      
-      // Reset form
-      setYoutubeUrl('')
-      setYoutubeTitle('')
-      setYoutubeDescription('')
-      setYoutubeTags('')
-
-      // Navigate to dashboard after 2 seconds
-      setTimeout(() => {
-        navigate('/dashboard')
-      }, 2000)
-    } catch (err: any) {
-      setError(err.message || 'Failed to upload YouTube video')
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Removed legacy YouTube URL submission handler
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -108,6 +80,52 @@ export default function Upload() {
     }
   }
 
+  const handleTranscriptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
+    setLoading(true)
+
+    try {
+      // Validate transcript text
+      if (!transcriptText.trim()) {
+        throw new Error('Please enter transcript text')
+      }
+
+      await contentService.uploadTranscript({
+        text: transcriptText,
+        title: transcriptTitle || 'Untitled Transcript',
+        description: transcriptDescription,
+        tags: transcriptTags,
+        url: transcriptUrl,
+        author: transcriptAuthor,
+        duration: transcriptDuration,
+        language: transcriptLanguage
+      })
+
+      setSuccess('Transcript uploaded successfully! Processing has started.')
+
+      // Reset form
+      setTranscriptText('')
+      setTranscriptTitle('')
+      setTranscriptDescription('')
+      setTranscriptTags('')
+      setTranscriptUrl('')
+      setTranscriptAuthor('')
+      setTranscriptDuration('')
+      setTranscriptLanguage('en')
+
+      // Navigate to dashboard after 2 seconds
+      setTimeout(() => {
+        navigate('/dashboard')
+      }, 2000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload transcript')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleDocumentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -123,7 +141,7 @@ export default function Upload() {
     try {
       await contentService.uploadDocument(selectedFile)
       setSuccess('Document uploaded successfully! Processing has started.')
-      
+
       // Reset form
       setSelectedFile(null)
 
@@ -161,23 +179,23 @@ export default function Upload() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Upload Type Tabs */}
         <div className="bg-white rounded-lg shadow-sm mb-8">
-          <div className="flex border-b">
+          <div className="grid grid-cols-2 border-b">
             <button
-              onClick={() => setUploadType('youtube')}
-              className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
-                uploadType === 'youtube'
+              onClick={() => setUploadType('youtube-transcript')}
+              className={`py-4 px-6 text-center font-medium transition-colors ${
+                uploadType === 'youtube-transcript'
                   ? 'border-b-2 border-blue-500 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <svg className="w-6 h-6 mx-auto mb-2" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+              <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              YouTube Video
+              YouTube Transcript
             </button>
             <button
               onClick={() => setUploadType('document')}
-              className={`flex-1 py-4 px-6 text-center font-medium transition-colors ${
+              className={`py-4 px-6 text-center font-medium transition-colors ${
                 uploadType === 'document'
                   ? 'border-b-2 border-blue-500 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
@@ -212,53 +230,104 @@ export default function Upload() {
 
         {/* Upload Forms */}
         <div className="bg-white rounded-lg shadow-sm p-8">
-          {uploadType === 'youtube' ? (
-            <form onSubmit={handleYouTubeSubmit}>
+          {uploadType === 'youtube-transcript' ? (
+            <form onSubmit={handleTranscriptSubmit}>
               <div className="mb-6">
-                <label htmlFor="youtubeUrl" className="block text-sm font-medium text-gray-700 mb-2">
-                  YouTube URL <span className="text-red-500">*</span>
+                <label htmlFor="transcriptText" className="block text-sm font-medium text-gray-700 mb-2">
+                  Transcript Text <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="url"
-                  id="youtubeUrl"
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                <textarea
+                  id="transcriptText"
+                  value={transcriptText}
+                  onChange={(e) => setTranscriptText(e.target.value)}
+                  placeholder="Paste your YouTube transcript text here..."
+                  rows={8}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   required
                   disabled={loading}
+                  minLength={10}
+                  maxLength={100000}
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Enter the URL of a YouTube video (max 3 hours duration)
+                  Paste the transcript text (10-100,000 characters). This will be processed through the same AI pipeline as YouTube videos.
                 </p>
               </div>
 
-              <div className="mb-6">
-                <label htmlFor="youtubeTitle" className="block text-sm font-medium text-gray-700 mb-2">
-                  Title (Optional)
-                </label>
-                <input
-                  type="text"
-                  id="youtubeTitle"
-                  value={youtubeTitle}
-                  onChange={(e) => setYoutubeTitle(e.target.value)}
-                  placeholder="Give your content a custom title"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  maxLength={200}
-                  disabled={loading}
-                />
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label htmlFor="transcriptTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                    Title (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="transcriptTitle"
+                    value={transcriptTitle}
+                    onChange={(e) => setTranscriptTitle(e.target.value)}
+                    placeholder="Video title"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    maxLength={200}
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="transcriptAuthor" className="block text-sm font-medium text-gray-700 mb-2">
+                    Author (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="transcriptAuthor"
+                    value={transcriptAuthor}
+                    onChange={(e) => setTranscriptAuthor(e.target.value)}
+                    placeholder="Channel name"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    maxLength={100}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label htmlFor="transcriptUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                    YouTube URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    id="transcriptUrl"
+                    value={transcriptUrl}
+                    onChange={(e) => setTranscriptUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="transcriptDuration" className="block text-sm font-medium text-gray-700 mb-2">
+                    Duration (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="transcriptDuration"
+                    value={transcriptDuration}
+                    onChange={(e) => setTranscriptDuration(e.target.value)}
+                    placeholder="e.g., 10:30"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    maxLength={20}
+                    disabled={loading}
+                  />
+                </div>
               </div>
 
               <div className="mb-6">
-                <label htmlFor="youtubeDescription" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="transcriptDescription" className="block text-sm font-medium text-gray-700 mb-2">
                   Description (Optional)
                 </label>
                 <textarea
-                  id="youtubeDescription"
-                  value={youtubeDescription}
-                  onChange={(e) => setYoutubeDescription(e.target.value)}
+                  id="transcriptDescription"
+                  value={transcriptDescription}
+                  onChange={(e) => setTranscriptDescription(e.target.value)}
                   placeholder="Add notes or context about this material"
-                  rows={4}
+                  rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   maxLength={1000}
                   disabled={loading}
@@ -266,14 +335,14 @@ export default function Upload() {
               </div>
 
               <div className="mb-8">
-                <label htmlFor="youtubeTags" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="transcriptTags" className="block text-sm font-medium text-gray-700 mb-2">
                   Tags (Optional)
                 </label>
                 <input
                   type="text"
-                  id="youtubeTags"
-                  value={youtubeTags}
-                  onChange={(e) => setYoutubeTags(e.target.value)}
+                  id="transcriptTags"
+                  value={transcriptTags}
+                  onChange={(e) => setTranscriptTags(e.target.value)}
                   placeholder="math, calculus, derivatives (comma separated)"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={loading}
@@ -285,7 +354,7 @@ export default function Upload() {
 
               <button
                 type="submit"
-                disabled={loading || !youtubeUrl}
+                disabled={loading || !transcriptText}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
               >
                 {loading ? (

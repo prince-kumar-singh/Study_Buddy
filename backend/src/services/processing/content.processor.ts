@@ -5,7 +5,6 @@ import { Summary } from '../../models/Summary.model';
 import { Flashcard } from '../../models/Flashcard.model';
 import { Quiz } from '../../models/Quiz.model';
 import { logger } from '../../config/logger';
-import { YoutubeTranscript } from 'youtube-transcript';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { getVectorStore } from '../ai/vectorstore/setup';
@@ -35,219 +34,9 @@ export class ContentProcessor {
     this.wsService = wsService;
   }
 
-  /**
-   * Process YouTube video through the complete AI pipeline
-   */
-  async processYouTubeContent(contentId: string, userId: string): Promise<void> {
-    const objectId = new Types.ObjectId(contentId);
-    
-    try {
-      logger.info(`Starting YouTube processing for content ${contentId}`);
+  // Removed legacy YouTube fetch pipeline. Only user-provided transcript/document flows remain.
 
-      // Update status to processing
-      await Content.findByIdAndUpdate(objectId, {
-        status: 'processing',
-        'processingStages.transcription.status': 'processing',
-      });
 
-      this.emitProgress(userId, contentId, 'transcription', 10, 'Fetching YouTube transcript...');
-
-      // Step 1: Fetch transcript using LangChain YoutubeLoader
-      const content = await Content.findById(objectId);
-      if (!content || !content.sourceUrl) {
-        throw new Error('Content or source URL not found');
-      }
-
-      const transcript = await this.fetchYouTubeTranscript(content.sourceUrl, contentId, userId);
-      
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.transcription.status': 'completed',
-        'processingStages.transcription.progress': 100,
-      });
-
-      this.emitProgress(userId, contentId, 'transcription', 100, 'Transcript fetched successfully');
-
-      // Step 2: Chunk and vectorize transcript
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.vectorization.status': 'processing',
-      });
-
-      this.emitProgress(userId, contentId, 'vectorization', 10, 'Chunking and embedding transcript...');
-
-      await this.vectorizeTranscript(transcript, contentId, userId);
-
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.vectorization.status': 'completed',
-        'processingStages.vectorization.progress': 100,
-      });
-
-      this.emitProgress(userId, contentId, 'vectorization', 100, 'Vectorization completed');
-
-      // Step 3: Generate summaries
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.summarization.status': 'processing',
-      });
-
-      this.emitProgress(userId, contentId, 'summarization', 10, 'Generating summaries...');
-
-      await this.generateSummaries(transcript, contentId, userId);
-
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.summarization.status': 'completed',
-        'processingStages.summarization.progress': 100,
-      });
-
-      this.emitProgress(userId, contentId, 'summarization', 100, 'Summaries generated');
-
-      // Step 4: Generate flashcards
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.flashcardGeneration.status': 'processing',
-      });
-
-      this.emitProgress(userId, contentId, 'flashcardGeneration', 10, 'Generating flashcards...');
-
-      await this.generateFlashcards(transcript, contentId, userId);
-
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.flashcardGeneration.status': 'completed',
-        'processingStages.flashcardGeneration.progress': 100,
-      });
-
-      this.emitProgress(userId, contentId, 'flashcardGeneration', 100, 'Flashcards generated');
-
-      // Step 5: Generate quizzes with retry logic
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.quizGeneration.status': 'processing',
-      });
-
-      this.emitProgress(userId, contentId, 'quizGeneration', 10, 'Generating quizzes...');
-
-      await this.generateQuizzes(transcript, contentId, userId);
-
-      await Content.findByIdAndUpdate(objectId, {
-        'processingStages.quizGeneration.status': 'completed',
-        'processingStages.quizGeneration.progress': 100,
-        status: 'completed',
-      });
-
-      this.emitProgress(userId, contentId, 'quizGeneration', 100, 'Processing completed!');
-
-      logger.info(`Successfully completed processing for content ${contentId}`);
-    } catch (error) {
-      // Special handling for quota errors - pause instead of fail
-      if (error instanceof QuotaExceededError) {
-        logger.warn(`Processing paused for content ${contentId} due to quota limit`);
-        
-        await Content.findByIdAndUpdate(objectId, {
-          status: 'paused',
-          'metadata.pausedReason': 'quota_exceeded',
-          'metadata.pausedAt': new Date(),
-          'metadata.quotaInfo': error.quotaInfo,
-        });
-
-        // User already notified in generateSummaries, so just log here
-        return;
-      }
-      
-      logger.error(`Processing failed for content ${contentId}:`, error);
-
-      await Content.findByIdAndUpdate(objectId, {
-        status: 'failed',
-        'metadata.error': error instanceof Error ? error.message : 'Unknown error',
-      });
-
-      this.emitProgress(userId, contentId, 'error', 0, 'Processing failed');
-      throw error;
-    }
-  }
-
-  /**
-   * Fetch YouTube transcript using youtube-transcript library
-   */
-  private async fetchYouTubeTranscript(
-    videoUrl: string,
-    contentId: string,
-    userId: string
-  ): Promise<any> {
-    try {
-      // Extract video ID from URL
-      const videoId = this.extractYouTubeVideoId(videoUrl);
-      if (!videoId) {
-        throw new Error('Invalid YouTube URL');
-      }
-
-      logger.info(`Fetching transcript for video ${videoId}`);
-
-      // Fetch transcript using youtube-transcript library
-      const transcriptData = await YoutubeTranscript.fetchTranscript(videoId);
-
-      if (!transcriptData || transcriptData.length === 0) {
-        throw new Error('No transcript found for this video');
-      }
-
-      // Combine all transcript segments into full text
-      const fullText = transcriptData.map(item => item.text).join(' ');
-
-      // Create transcript segments with timestamps
-      const segments = transcriptData.map(item => ({
-        text: item.text,
-        startTime: Math.floor(item.offset),
-        endTime: Math.floor(item.offset + item.duration),
-        speaker: 'Unknown',
-        confidence: 1.0,
-      }));
-
-      // Calculate total duration
-      const lastSegment = transcriptData[transcriptData.length - 1];
-      const totalDuration = lastSegment ? Math.floor((lastSegment.offset + lastSegment.duration) / 1000) : 0;
-
-      // Update content with video metadata
-      await Content.findByIdAndUpdate(contentId, {
-        'metadata.duration': totalDuration,
-        'metadata.videoId': videoId,
-      });
-
-      // Create transcript document
-      const transcript = new Transcript({
-        contentId: new Types.ObjectId(contentId),
-        userId: new Types.ObjectId(userId),
-        fullText,
-        segments,
-        language: 'en',
-        metadata: {
-          source: 'youtube',
-          videoId,
-        },
-      });
-
-      await transcript.save();
-      logger.info(`Transcript saved for content ${contentId}`);
-
-      return transcript;
-    } catch (error) {
-      logger.error('YouTube transcript fetch failed:', error);
-      throw new Error(`Failed to fetch YouTube transcript: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Extract YouTube video ID from various URL formats
-   */
-  private extractYouTubeVideoId(url: string): string | null {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /^([a-zA-Z0-9_-]{11})$/, // Direct video ID
-    ];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-
-    return null;
-  }
 
   /**
    * Chunk transcript and store embeddings in vector database
@@ -910,12 +699,205 @@ export class ContentProcessor {
   }
 
   /**
+   * Process YouTube transcript content through the complete AI pipeline
+   * Pipeline: Transcript Processing → Vectorization → Summary → Flashcards → Quizzes
+   */
+  async processYouTubeTranscriptContent(
+    contentId: string,
+    userId: string,
+    transcriptText: string,
+    options: {
+      title?: string;
+      author?: string;
+      duration?: string;
+      language?: string;
+    } = {}
+  ): Promise<void> {
+    const objectId = new Types.ObjectId(contentId);
+
+    try {
+      logger.info(`Starting YouTube transcript processing for content ${contentId} (${transcriptText.length} characters)`);
+
+      // Update status to processing
+      await Content.findByIdAndUpdate(objectId, {
+        status: 'processing',
+        'processingStages.transcription.status': 'completed', // Already provided
+        'processingStages.transcription.progress': 100,
+      });
+
+      this.emitProgress(userId, contentId, 'transcription', 100, 'Transcript provided by user');
+
+      // Step 1: Create transcript from provided text
+      this.emitProgress(userId, contentId, 'transcription', 50, 'Processing transcript text...');
+
+      const transcript = await this.createTranscriptFromText(transcriptText, contentId, userId, options);
+
+      // Step 2: Vectorize transcript chunks
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.vectorization.status': 'processing',
+      });
+
+      this.emitProgress(userId, contentId, 'vectorization', 10, 'Chunking and embedding transcript...');
+
+      await this.vectorizeTranscript(transcript, contentId, userId);
+
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.vectorization.status': 'completed',
+        'processingStages.vectorization.progress': 100,
+      });
+
+      this.emitProgress(userId, contentId, 'vectorization', 100, 'Vectorization completed');
+
+      // Step 3: Generate summaries
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.summarization.status': 'processing',
+      });
+
+      this.emitProgress(userId, contentId, 'summarization', 10, 'Generating summaries...');
+
+      await this.generateSummaries(transcript, contentId, userId);
+
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.summarization.status': 'completed',
+        'processingStages.summarization.progress': 100,
+      });
+
+      this.emitProgress(userId, contentId, 'summarization', 100, 'Summaries generated');
+
+      // Step 4: Generate flashcards
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.flashcardGeneration.status': 'processing',
+      });
+
+      this.emitProgress(userId, contentId, 'flashcardGeneration', 10, 'Generating flashcards...');
+
+      await this.generateFlashcards(transcript, contentId, userId);
+
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.flashcardGeneration.status': 'completed',
+        'processingStages.flashcardGeneration.progress': 100,
+      });
+
+      this.emitProgress(userId, contentId, 'flashcardGeneration', 100, 'Flashcards generated');
+
+      // Step 5: Generate quizzes
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.quizGeneration.status': 'processing',
+      });
+
+      this.emitProgress(userId, contentId, 'quizGeneration', 10, 'Generating quizzes...');
+
+      await this.generateQuizzes(transcript, contentId, userId);
+
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.quizGeneration.status': 'completed',
+        'processingStages.quizGeneration.progress': 100,
+        status: 'completed',
+      });
+
+      this.emitProgress(userId, contentId, 'quizGeneration', 100, 'Processing completed!');
+
+      logger.info(`Successfully completed YouTube transcript processing for content ${contentId}`);
+    } catch (error) {
+      // Special handling for quota errors - pause instead of fail
+      if (error instanceof QuotaExceededError) {
+        logger.warn(`Processing paused for content ${contentId} due to quota limit`);
+
+        await Content.findByIdAndUpdate(objectId, {
+          status: 'paused',
+          'metadata.pausedReason': 'quota_exceeded',
+          'metadata.pausedAt': new Date(),
+          'metadata.quotaInfo': error.quotaInfo,
+        });
+
+        // User already notified in generateSummaries, so just log here
+        return;
+      }
+
+      logger.error(`YouTube transcript processing failed for content ${contentId}:`, error);
+
+      await Content.findByIdAndUpdate(objectId, {
+        status: 'failed',
+        'metadata.error': error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      this.emitProgress(userId, contentId, 'error', 0, 'Processing failed');
+      throw error;
+    }
+  }
+
+  /**
+   * Create transcript document from provided text
+   */
+  private async createTranscriptFromText(
+    transcriptText: string,
+    contentId: string,
+    userId: string,
+    options: {
+      title?: string;
+      author?: string;
+      duration?: string;
+      language?: string;
+    } = {}
+  ): Promise<any> {
+    try {
+      logger.info(`Creating transcript from provided text (${transcriptText.length} characters)`);
+
+      // Split text into chunks for processing (similar to document processing)
+      const textSplitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1000, // Larger chunks for transcript text
+        chunkOverlap: 200,
+      });
+
+      const chunks = await textSplitter.splitText(transcriptText);
+
+      // Create segments from chunks (without timestamps for user-provided transcripts)
+      const segments = chunks.map((chunk, index) => ({
+        text: chunk,
+        startTime: index * 1000, // Pseudo timestamps for chunk ordering
+        endTime: (index + 1) * 1000,
+        speaker: 'Transcript',
+        confidence: 1.0,
+        metadata: {
+          chunkIndex: index,
+          source: 'user-provided',
+        },
+      }));
+
+      // Create transcript document
+      const transcript = new Transcript({
+        contentId: new Types.ObjectId(contentId),
+        userId: new Types.ObjectId(userId),
+        fullText: transcriptText,
+        segments,
+        language: options.language || 'en',
+        metadata: {
+          source: 'user-provided-transcript',
+          title: options.title,
+          author: options.author,
+          duration: options.duration,
+          totalChunks: chunks.length,
+          transcriptLength: transcriptText.length,
+        },
+      });
+
+      await transcript.save();
+      logger.info(`Transcript created from user-provided text for content ${contentId}`);
+
+      return transcript;
+    } catch (error) {
+      logger.error('Transcript creation from text failed:', error);
+      throw new Error(`Failed to create transcript from text: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Resume processing from a paused state (e.g., after quota restoration)
    * TODO: Implement resume logic that picks up from where processing stopped
    */
   async resumeProcessing(contentId: string, userId: string, fromStage?: string): Promise<void> {
     logger.info(`Resume processing requested for content ${contentId}`);
-    
+
     const content = await Content.findById(new Types.ObjectId(contentId));
     if (!content) {
       throw new Error('Content not found');
@@ -926,13 +908,8 @@ export class ContentProcessor {
       throw new Error('Content is not in paused state');
     }
 
-    // Reset status and retry processing based on content type
-    if (content.type === 'youtube') {
-      await this.processYouTubeContent(contentId, userId);
-    } else {
-      // Handle document processing resume
-      await this.resumeDocumentProcessing(contentId, userId);
-    }
+    // Resume using the same path as documents/transcripts (transcript must already exist)
+    await this.resumeDocumentProcessing(contentId, userId);
   }
 
   /**

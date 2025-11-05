@@ -178,67 +178,7 @@ router.get('/:id/summaries', async (req: Request, res: Response, next: NextFunct
   }
 });
 
-/**
- * POST /api/contents/upload-youtube
- * Upload YouTube video for processing
- */
-router.post('/upload-youtube', 
-  [
-    body('url').isURL().withMessage('Valid YouTube URL required'),
-    body('title').optional().trim().isLength({ min: 1, max: 200 }),
-    body('description').optional().trim().isLength({ max: 1000 }),
-    body('tags').optional().isArray(),
-  ],
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        throw new ApiError(400, errors.array()[0].msg);
-      }
-
-      const userId = req.user!.id;
-      const { url, title, description, tags } = req.body;
-
-      // TODO: Validate YouTube URL format and extract video ID
-      // TODO: Check video duration (max 3 hours)
-      // TODO: Check video availability
-
-      // Create content document
-      const content = await Content.create({
-        userId: new mongoose.Types.ObjectId(userId),
-        type: 'youtube',
-        title: title || 'YouTube Video',
-        description,
-        sourceUrl: url,
-        tags: tags || [],
-        status: 'pending',
-        processingStages: {
-          transcription: { status: 'pending', progress: 0 },
-          vectorization: { status: 'pending', progress: 0 },
-          summarization: { status: 'pending', progress: 0 },
-          flashcardGeneration: { status: 'pending', progress: 0 },
-          quizGeneration: { status: 'pending', progress: 0 },
-        },
-      });
-
-      logger.info(`YouTube upload initiated: ${content._id} by user ${userId}`);
-
-      // Start processing automatically in background
-      const contentId = (content._id as mongoose.Types.ObjectId).toString();
-      contentProcessor.processYouTubeContent(contentId, userId).catch((error) => {
-        logger.error(`Background processing failed for content ${contentId}:`, error);
-      });
-
-      res.status(201).json({
-        success: true,
-        data: { content },
-        message: 'YouTube video queued for processing. Processing started automatically.',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+// Removed legacy YouTube video upload route. Use /upload-transcript instead.
 
 /**
  * POST /api/contents/upload-document
@@ -372,6 +312,83 @@ router.post('/upload-document',
 );
 
 /**
+ * POST /api/contents/upload-transcript
+ * Upload YouTube transcript text for processing
+ */
+router.post('/upload-transcript',
+  [
+    body('text').isLength({ min: 10, max: 100000 }).withMessage('Transcript text must be between 10 and 100,000 characters'),
+    body('title').optional().trim().isLength({ min: 1, max: 200 }),
+    body('description').optional().trim().isLength({ max: 1000 }),
+    body('tags').optional().isString(),
+    body('url').optional({ checkFalsy: true }).isURL().withMessage('Valid URL required if provided'),
+    body('author').optional().trim().isLength({ max: 100 }),
+    body('duration').optional().isString(),
+    body('language').optional().isIn(['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'ja', 'ko', 'zh']).withMessage('Invalid language code'),
+  ],
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        throw new ApiError(400, errors.array()[0].msg);
+      }
+
+      const userId = req.user!.id;
+      const { text, title, description, tags, url, author, duration, language } = req.body;
+
+      // Parse tags if provided as comma-separated string
+      const tagArray = tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
+
+      // Create content document
+      const content = await Content.create({
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'youtube',
+        title: title || 'YouTube Transcript',
+        description,
+        sourceUrl: url || null,
+        tags: tagArray,
+        status: 'pending',
+        metadata: {
+          transcriptLength: text.length,
+          language: language || 'en',
+          author,
+          duration,
+          isUserProvided: true,
+        },
+        processingStages: {
+          transcription: { status: 'completed', progress: 100 }, // Transcript already provided
+          vectorization: { status: 'pending', progress: 0 },
+          summarization: { status: 'pending', progress: 0 },
+          flashcardGeneration: { status: 'pending', progress: 0 },
+          quizGeneration: { status: 'pending', progress: 0 },
+        },
+      });
+
+      logger.info(`Transcript upload initiated: ${content._id} by user ${userId} (${text.length} characters)`);
+
+      // Start processing automatically in background
+      const contentId = (content._id as mongoose.Types.ObjectId).toString();
+      contentProcessor.processYouTubeTranscriptContent(contentId, userId, text, {
+        title,
+        author,
+        duration,
+        language,
+      }).catch((error) => {
+        logger.error(`Background processing failed for content ${contentId}:`, error);
+      });
+
+      res.status(201).json({
+        success: true,
+        data: { content },
+        message: 'Transcript uploaded and queued for processing. Processing started automatically.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * POST /api/contents/upload-documents
  * Upload multiple documents (PDF/DOCX/TXT) for processing
  * Max 5 files per request, 25MB per file
@@ -404,7 +421,7 @@ router.post('/upload-documents',
 
       const userId = req.user!.id;
       const files = req.files as Express.Multer.File[];
-      
+
       // Validate uploaded files
       validateUploadedFiles(files);
 
@@ -497,7 +514,7 @@ router.post('/upload-documents',
 
       res.status(201).json({
         success: true,
-        data: { 
+        data: {
           contents: uploadedContents,
           totalUploaded: uploadedContents.length,
           totalFiles: files.length,

@@ -14,63 +14,7 @@ const contentProcessor = new ContentProcessor(wsService);
 // All routes require authentication
 router.use(authenticate);
 
-/**
- * POST /api/processing/start/:id
- * Start processing for a content item
- */
-router.post(
-  '/start/:id',
-  [param('id').isMongoId().withMessage('Invalid content ID')],
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = req.user!.id;
-      const { id } = req.params;
-
-      // Verify content exists and belongs to user
-      const content = await Content.findOne({
-        _id: id,
-        userId: new mongoose.Types.ObjectId(userId),
-        isDeleted: false,
-      });
-
-      if (!content) {
-        throw new ApiError(404, 'Content not found');
-      }
-
-      if (content.status === 'processing') {
-        throw new ApiError(400, 'Content is already being processed');
-      }
-
-      if (content.status === 'completed') {
-        throw new ApiError(400, 'Content has already been processed');
-      }
-
-      // Start processing asynchronously
-      if (content.type === 'youtube') {
-        // Don't await - process in background
-        contentProcessor.processYouTubeContent(id, userId).catch((error) => {
-          logger.error(`Background processing failed for content ${id}:`, error);
-        });
-
-        logger.info(`Started background processing for YouTube content ${id}`);
-
-        res.json({
-          success: true,
-          message: 'Processing started. You will receive real-time updates via WebSocket.',
-          data: { contentId: id },
-        });
-      } else if (content.type === 'pdf' || content.type === 'docx' || content.type === 'txt') {
-        // For documents that failed or need reprocessing, we need to reload the document
-        // This is a manual restart - the automatic processing happens on upload
-        throw new ApiError(400, 'Document reprocessing requires re-upload. Documents are automatically processed on upload.');
-      } else {
-        throw new ApiError(400, `Unsupported content type: ${content.type}`);
-      }
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+// Removed legacy manual start endpoint for YouTube content.
 
 /**
  * GET /api/processing/status/:id

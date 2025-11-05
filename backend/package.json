@@ -43,10 +43,11 @@
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
+    "googleapis": "^126.0.1",
     "helmet": "^7.1.0",
     "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
-    "langchain": "^0.1.25",
+    "langchain": "^0.1.37",
     "mammoth": "^1.6.0",
     "mongoose": "^8.1.1",
     "morgan": "^1.10.0",
@@ -61,7 +62,8 @@
     "socket.io": "^4.6.1",
     "winston": "^3.11.0",
     "ws": "^8.16.0",
-    "youtube-transcript": "^1.0.6",
+    "youtube-transcript": "^1.2.1",
+    "youtubei.js": "^9.4.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

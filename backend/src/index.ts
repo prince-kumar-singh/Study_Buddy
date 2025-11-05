@@ -113,7 +113,6 @@ app.get('/api-docs', (_req: Request, res: Response) => {
         'GET /api/auth/me': 'Get current user',
       },
       contents: {
-        'POST /api/contents/upload-youtube': 'Upload YouTube video',
         'POST /api/contents/upload-document': 'Upload document',
         'GET /api/contents': 'Get all user contents',
         'GET /api/contents/:id': 'Get content by ID',

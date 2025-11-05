@@ -30,6 +30,10 @@ export enum AITaskType {
   QA_STREAMING = 'qa_streaming',
   EMBEDDING = 'embedding',
   CONCEPT_EXTRACTION = 'concept_extraction',
+  CONTENT_QUALITY = 'content_quality',
+  ENTITY_EXTRACTION = 'entity_extraction',
+  DIFFICULTY_ANALYSIS = 'difficulty_analysis',
+  SEMANTIC_METADATA = 'semantic_metadata',
 }
 
 /**
@@ -182,6 +186,22 @@ const TASK_MODEL_PREFERENCES: Record<AITaskType, { primary: GeminiModelName; fal
     fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE],
   },
   [AITaskType.CONCEPT_EXTRACTION]: {
+    primary: GEMINI_MODELS.FLASH,
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
+  },
+  [AITaskType.CONTENT_QUALITY]: {
+    primary: GEMINI_MODELS.FLASH,
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
+  },
+  [AITaskType.ENTITY_EXTRACTION]: {
+    primary: GEMINI_MODELS.FLASH,
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
+  },
+  [AITaskType.DIFFICULTY_ANALYSIS]: {
+    primary: GEMINI_MODELS.FLASH,
+    fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
+  },
+  [AITaskType.SEMANTIC_METADATA]: {
     primary: GEMINI_MODELS.FLASH,
     fallbacks: [GEMINI_MODELS.FLASH, GEMINI_MODELS.FLASH_LITE, GEMINI_MODELS.PRO],
   },

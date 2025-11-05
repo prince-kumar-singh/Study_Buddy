@@ -5,7 +5,7 @@ export interface IApiRequestLog extends Document {
   contentId?: mongoose.Types.ObjectId
   apiProvider: 'gemini' | 'openai' | 'other'
   endpoint: string
-  requestType: 'embedding' | 'completion' | 'summarization' | 'flashcard' | 'quiz' | 'qa' | 'other'
+  requestType: 'embedding' | 'completion' | 'summarization' | 'flashcard' | 'quiz' | 'qa' | 'content_quality' | 'entity_extraction' | 'difficulty_analysis' | 'semantic_metadata' | 'other'
   status: 'success' | 'failure' | 'quota_exceeded'
   tokensUsed?: number
   requestDuration?: number // milliseconds
@@ -45,7 +45,7 @@ const ApiRequestLogSchema = new Schema<IApiRequestLog>(
     },
     requestType: {
       type: String,
-      enum: ['embedding', 'completion', 'summarization', 'flashcard', 'quiz', 'qa', 'other'],
+      enum: ['embedding', 'completion', 'summarization', 'flashcard', 'quiz', 'qa', 'content_quality', 'entity_extraction', 'difficulty_analysis', 'semantic_metadata', 'other'],
       required: true,
       index: true
     },
