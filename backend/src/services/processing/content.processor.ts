@@ -568,7 +568,15 @@ export class ContentProcessor {
 
       this.emitProgress(userId, contentId, 'flashcardGeneration', 100, 'Flashcards generated');
 
-      // Step 5: Complete processing (quizzes placeholder for now)
+      // Step 5: Generate quizzes (all difficulty levels)
+      await Content.findByIdAndUpdate(objectId, {
+        'processingStages.quizGeneration.status': 'processing',
+      });
+
+      this.emitProgress(userId, contentId, 'quizGeneration', 10, 'Generating quizzes...');
+
+      await this.generateQuizzes(transcript, contentId, userId);
+
       await Content.findByIdAndUpdate(objectId, {
         'processingStages.quizGeneration.status': 'completed',
         'processingStages.quizGeneration.progress': 100,
