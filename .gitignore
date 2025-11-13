@@ -63,9 +63,9 @@ dump.rdb
 #temp del
 *.pdf
 .pdf
-README*
-readme*
-*.md
+# README*
+# readme*
+# *.md
 pm files/
 .github/
 DOCUMENTATION/
