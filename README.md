@@ -5,7 +5,7 @@ Study Buddy is an AI-powered learning platform that transforms your study materi
 
 ## Features
 
-- **AI-Powered Content Generation**: Automatically generate summaries, flashcards, and quizzes from your uploaded documents (PDF, DOCX, TXT) and YouTube videos.
+- **AI-Powered Content Generation**: Automatically generate summaries, flashcards, and quizzes from your uploaded documents (PDF, DOCX, TXT) and YouTube Transcripts.
 - **Interactive Learning**: Reinforce your knowledge with interactive flashcards and quizzes.
 - **Q&A**: Ask questions about your documents and get instant answers from the AI.
 - **Spaced Repetition**: Study flashcards using a spaced repetition algorithm (SM2) to maximize retention.
